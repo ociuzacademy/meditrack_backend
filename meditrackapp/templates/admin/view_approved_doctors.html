@@ -6,7 +6,7 @@
   .dashboard-title {
     text-align: center;
     font-weight: 700;
-    color: #0077b6;
+    color: #300a4f;
     margin: 40px 0;
   }
 
@@ -17,41 +17,43 @@
     background-color: #fff;
     border-radius: 10px;
     overflow: hidden;
-    box-shadow: 0 4px 10px rgba(0, 119, 182, 0.1);
+    box-shadow: 0 4px 10px rgba(48, 10, 79, 0.2);
   }
 
   th, td {
     padding: 12px 15px;
     text-align: center;
-    border-bottom: 1px solid #e0e0e0;
+    border-bottom: 1px solid #e8e0f1;
     vertical-align: middle;
   }
 
   th {
-    background-color: #0077b6;
+    background-color: #300a4f;
     color: #fff;
     font-weight: 600;
   }
 
   tr:hover {
-    background-color: #f1f9ff;
+    background-color: #f4effa;
   }
 
+  /* Images */
   .doctor-image, .id-image {
     width: 60px;
     height: 60px;
     object-fit: cover;
     border-radius: 50%;
-    border: 2px solid #0077b6;
-    box-shadow: 0 2px 4px rgba(0, 119, 182, 0.2);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    border: 2px solid #300a4f;
+    cursor: pointer;
+    transition: 0.2s;
   }
 
   .doctor-image:hover, .id-image:hover {
-    transform: scale(1.1);
-    box-shadow: 0 4px 8px rgba(0, 119, 182, 0.3);
+    transform: scale(1.12);
+    box-shadow: 0 3px 8px rgba(48, 10, 79, 0.4);
   }
 
+  /* Working Days */
   .working-days {
     display: flex;
     flex-wrap: wrap;
@@ -60,7 +62,7 @@
   }
 
   .day-badge {
-    background-color: #0077b6;
+    background-color: #300a4f;
     color: #fff;
     font-size: 12px;
     padding: 3px 7px;
@@ -68,21 +70,34 @@
     text-transform: capitalize;
   }
 
+  /* Reject Button */
   .btn-reject {
     background-color: #d90429;
     color: #fff;
-    border: none;
     padding: 6px 14px;
     border-radius: 6px;
+    text-decoration: none;
     font-size: 0.9rem;
-    cursor: pointer;
-    transition: background-color 0.2s ease;
   }
 
   .btn-reject:hover {
     background-color: #a1011d;
+    color: #fff;
   }
 
+  /* Modal */
+  .modal-content {
+    border: 4px solid #300a4f;
+    border-radius: 15px;
+    padding: 15px;
+  }
+
+  .modal-img {
+    width: 100%;
+    max-height: 520px;
+    object-fit: contain;
+    border-radius: 12px;
+  }
 </style>
 
 <div class="container">
@@ -104,43 +119,43 @@
         <th>Action</th>
       </tr>
     </thead>
+
     <tbody>
       {% for doctor in doctors %}
       <tr>
         <td>{{ forloop.counter }}</td>
 
-        <!-- Profile Photo -->
+        <!-- Profile Image with Modal -->
         <td>
-          {% if doctor.image %}
-            <img src="{{ doctor.image.url }}" class="doctor-image" alt="{{ doctor.name }}">
-          {% else %}
-            <img src="{% static 'default-avatar.png' %}" class="doctor-image" alt="No Image">
-          {% endif %}
+          <img 
+            src="{{ doctor.image.url }}" 
+            class="doctor-image"
+            data-bs-toggle="modal" 
+            data-bs-target="#modalProfile{{ doctor.id }}">
         </td>
 
-        <!-- ID Image -->
+        <!-- ID Image with Modal -->
         <td>
-          {% if doctor.id_image %}
-            <img src="{{ doctor.id_image.url }}" class="id-image" alt="ID Image">
-          {% else %}
-            <img src="{% static 'default-id.png' %}" class="id-image" alt="No ID">
-          {% endif %}
+          <img 
+            src="{{ doctor.id_image.url }}" 
+            class="id-image"
+            data-bs-toggle="modal" 
+            data-bs-target="#modalID{{ doctor.id }}">
         </td>
 
         <td>{{ doctor.name }}</td>
         <td>{{ doctor.email }}</td>
         <td>{{ doctor.phone_number }}</td>
+
         <td>
           {% if doctor.specialization %}
             {{ doctor.specialization.department }}
-          {% else %}
-            N/A
-          {% endif %}
+          {% else %} N/A {% endif %}
         </td>
+
         <td>{{ doctor.qualification|default:"N/A" }}</td>
         <td>{{ doctor.experience|default:"N/A" }}</td>
 
-        <!-- Working Days -->
         <td>
           {% if doctor.working_days %}
           <div class="working-days">
@@ -153,15 +168,36 @@
           {% endif %}
         </td>
 
-        <!-- Reject Button -->
         <td>
-          <a href="{% url 'reject_doctor' doctor.id %}" class="btn-reject">Reject</a>
+          <a href="{% url 'reject_doctor' doctor.id %}" class="btn-reject">
+            Reject
+          </a>
         </td>
       </tr>
+
+      <!-- PROFILE IMAGE MODAL -->
+      <div class="modal fade" id="modalProfile{{ doctor.id }}">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+          <div class="modal-content text-center">
+            <img src="{{ doctor.image.url }}" class="modal-img">
+          </div>
+        </div>
+      </div>
+
+      <!-- ID IMAGE MODAL -->
+      <div class="modal fade" id="modalID{{ doctor.id }}">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+          <div class="modal-content text-center">
+            <img src="{{ doctor.id_image.url }}" class="modal-img">
+          </div>
+        </div>
+      </div>
+
       {% empty %}
       <tr>
-        <td colspan="11" style="text-align:center; color: gray;">No approved doctors found.</td>
+        <td colspan="11" class="text-muted text-center">No approved doctors found.</td>
       </tr>
+
       {% endfor %}
     </tbody>
   </table>

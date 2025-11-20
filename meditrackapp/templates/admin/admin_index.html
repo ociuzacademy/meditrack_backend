@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MEDITRACK | Admin Dashboard</title>
 
-  <!-- ✅ CDN Styles -->
+  <!-- CDN Styles -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
 
@@ -17,7 +17,7 @@
     }
 
     header {
-      background-color: #0077b6;
+      background-color: #300a4f;
       padding: 15px 0;
       box-shadow: 0 2px 10px rgba(238, 235, 235, 0.1);
     }
@@ -46,7 +46,7 @@
       margin-bottom: 40px;
       text-align: center;
       font-weight: 700;
-      color: #023e8a;
+      color: #2a0945;
     }
 
     .card {
@@ -54,23 +54,28 @@
       border-radius: 15px;
       transition: all 0.3s ease;
       background: #ffffff;
-      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+      box-shadow: 0 4px 10px rgba(216, 212, 212, 0.08);
     }
 
     .card:hover {
       transform: translateY(-5px);
-      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+      box-shadow: 0 8px 25px rgba(255, 245, 245, 0.15);
     }
 
-    .card img {
-      height: 180px;
-      object-fit: cover;
-      border-top-left-radius: 15px;
-      border-top-right-radius: 15px;
+    .card-body {
+      padding: 25px;
     }
+
+    .card-title {
+      font-weight: 600;
+      color: #2a0945;
+    }
+
+    
+
 
     footer {
-      background-color: #023e8a;
+      background-color: #2a0945;
       color: white;
       padding: 15px 0;
       text-align: center;
@@ -79,18 +84,22 @@
     }
 
     .btn-custom {
-      background-color: #0077b6;
+      background-color: #2a0945;
       border: none;
     }
 
+    .btn-custom {
+    color: #fff !important;
+    }
+
     .btn-custom:hover {
-      background-color: #023e8a;
+      background-color: #2a0945;
     }
   </style>
 </head>
 <body>
 
-  <!-- ✅ Header -->
+  <!-- Header -->
   <header>
     <nav class="navbar navbar-expand-lg navbar-dark container">
       <a class="navbar-brand" href="#">MEDITRACK</a>
@@ -109,31 +118,21 @@
       </div>
     </nav>
   </header>
+
   {% block content %}
-  <!-- ✅ Dashboard -->
+  <!-- Dashboard -->
   <div class="container">
     <h2 class="dashboard-title">Admin Dashboard</h2>
 
     <div class="row g-4">
-      <!-- Hospital Profile -->
-      <!-- <div class="col-md-4">
-        <div class="card text-center">
-          <img src="https://cdn.pixabay.com/photo/2016/11/29/05/08/architecture-1867768_1280.jpg" alt="Hospital">
-          <div class="card-body">
-            <h5 class="card-title">Hospital Profile</h5>
-            <p class="card-text">View & update hospital information.</p>
-            <a href="#" class="btn btn-custom w-100">Manage</a>
-          </div>
-        </div>
-      </div> -->
 
       <!-- Doctors -->
       <div class="col-md-4">
         <div class="card text-center">
-          <img src="/static/images/8269362_3793084.jpg" alt="Doctors">
           <div class="card-body">
+            <i class="fa-solid fa-user-doctor fa-3x mb-3" style="color:#2a0945;"></i>
             <h5 class="card-title">Doctors</h5>
-            <p class="card-text">manage doctors.</p>
+            <p class="card-text">Manage hospital doctors.</p>
             <a href="{% url 'manage_doctor' %}" class="btn btn-custom w-100">Manage Doctors</a>
           </div>
         </div>
@@ -142,35 +141,35 @@
       <!-- Departments -->
       <div class="col-md-4">
         <div class="card text-center">
-          <img src="/static/images/12242144_4895656.jpg" alt="Departments">
           <div class="card-body">
+            <i class="fa-solid fa-building fa-3x mb-3" style="color:#2a0945;"></i>
             <h5 class="card-title">Departments</h5>
-            <p class="card-text">Organize and manage hospital departments.</p>
+            <p class="card-text">Organize and manage departments.</p>
             <a href="{% url 'manage_departments' %}" class="btn btn-custom w-100">Manage Departments</a>
           </div>
         </div>
       </div>
 
       <!-- Scheduling -->
-      <div class="col-md-4">
+      <!-- <div class="col-md-4">
         <div class="card text-center">
-          <img src="https://cdn.pixabay.com/photo/2016/03/31/19/56/calendar-1297979_1280.png" alt="Schedule">
           <div class="card-body">
+            <i class="fa-solid fa-calendar-days fa-3x mb-3" style="color:#2a0945;"></i>
             <h5 class="card-title">Doctor Scheduling</h5>
-            <p class="card-text">Assign shifts and manage availability.</p>
+            <p class="card-text">Assign shifts & manage availability.</p>
             <a href="#" class="btn btn-custom w-100">Manage Schedule</a>
           </div>
         </div>
-      </div>
+      </div> -->
 
       <!-- Tokens -->
       <div class="col-md-4">
         <div class="card text-center">
-          <img src="https://cdn.pixabay.com/photo/2017/05/14/17/22/timer-2310793_1280.jpg" alt="Tokens">
           <div class="card-body">
+            <i class="fa-solid fa-clock fa-3x mb-3" style="color:#2a0945;"></i>
             <h5 class="card-title">Token Status</h5>
             <p class="card-text">Monitor real-time patient queue.</p>
-            <a href="#" class="btn btn-custom w-100">View Tokens</a>
+            <a href="{% url 'admin_token_status' %}" class="btn btn-custom w-100">View Tokens</a>
           </div>
         </div>
       </div>
@@ -178,23 +177,37 @@
       <!-- Reports -->
       <div class="col-md-4">
         <div class="card text-center">
-          <img src="https://cdn.pixabay.com/photo/2018/03/01/09/33/analysis-3194943_1280.jpg" alt="Reports">
           <div class="card-body">
+            <i class="fa-solid fa-chart-line fa-3x mb-3" style="color:#2a0945;"></i>
             <h5 class="card-title">Reports</h5>
             <p class="card-text">View appointment & feedback reports.</p>
-            <a href="#" class="btn btn-custom w-100">View Reports</a>
+            <a href="{% url 'admin_reports' %}" class="btn btn-custom w-100">View Reports</a>
           </div>
         </div>
       </div>
+
+      <!-- Reschedule Requests -->
+      <div class="col-md-4">
+        <div class="card text-center">
+          <div class="card-body">
+            <i class="fa-solid fa-clock-rotate-left fa-3x mb-3" style="color:#2a0945;"></i>
+            <h5 class="card-title">Reschedule Requests</h5>
+            <p class="card-text">Review doctor emergency request appointments.</p>
+            <a href="{% url 'admin_reschedule_request_list' %}" class="btn btn-custom w-100">View Requests</a>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
-{% endblock %}
-  <!-- ✅ Footer -->
+  {% endblock %}
+
+  <!-- Footer -->
   <footer>
     © 2025 Meditrack | All Rights Reserved
   </footer>
 
-  <!-- ✅ Scripts -->
+  <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

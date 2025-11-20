@@ -76,3 +76,26 @@ class Feedback(models.Model):
         return f"Feedback for Appointment #{self.appointment.id} ({self.star_rating} ⭐)"
 
 
+class BloodDonor(models.Model):
+    BLOOD_GROUP_CHOICES = [
+        ("A+", "A+"), ("A-", "A-"),
+        ("B+", "B+"), ("B-", "B-"),
+        ("AB+", "AB+"), ("AB-", "AB-"),
+        ("O+", "O+"), ("O-", "O-"),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="blood_donor_profile")
+    blood_group = models.CharField(max_length=3, choices=BLOOD_GROUP_CHOICES)
+    last_donation_date = models.DateField(null=True, blank=True)
+    weight = models.DecimalField(max_digits=5, decimal_places=2)  # e.g., 70.50
+    under_medication = models.BooleanField(default=False)
+    had_recent_illness = models.BooleanField(default=False)
+    illness_details = models.TextField(blank=True)  # optional; only required when had_recent_illness==True
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("user",)  # ensures one donor record per user (optional)
+
+    def __str__(self):
+        return f"Donor: {self.user_id} ({self.blood_group})"

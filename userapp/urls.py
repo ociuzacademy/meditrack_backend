@@ -48,6 +48,7 @@ urlpatterns = [
     path('book_appointment/', AppointmentBookingView.as_view(), name='book_appointment'),
     path('card_payment/',CardPaymentView.as_view(),name='card_payment'),
     path('upi_payment/',UPIPaymentView.as_view(),name='upi_payment'),
+    path("upcoming_appointments/",UserUpcomingAppointmentsAPIView.as_view(),name="user_upcoming_appointments_api"),
     path('appointments/', UserAppointmentListView.as_view(), name='user-appointments'),
     path('appointment_details/', AppointmentDetailView.as_view(), name='appointment-detail'),
     path('cancel_appointment/', CancelAppointmentView.as_view(), name='cancel-appointment'),
@@ -57,4 +58,7 @@ urlpatterns = [
     path('feedback_list/', FeedbackListView.as_view(), name='feedback_list'),
     path('feedback_details/', FeedbackDetailView.as_view(), name='feedback_details'),
     path('appointment_confirmation/', BookingConfirmationView.as_view(), name='booking_confirmation'),
+    path("accept-reschedule/", AcceptRescheduleAPIView.as_view(), name="accept_reschedule"),
+    path("reject-reschedule/", RejectRescheduleAPIView.as_view(), name="reject_reschedule"),
+    path("blood_donors/", BloodDonorRegisterView.as_view(), name="blood-donor-register"),
 ]

@@ -1,15 +1,10 @@
 from django.shortcuts import render
 from datetime import timezone
 from django.shortcuts import get_object_or_404, render,redirect
-from django.urls import reverse
 from django.contrib import messages
 from .models import *
 from userapp.models import *
 from django.db.models import Q
-from django.db.models import Sum, Count
-from django.template.loader import get_template
-from django.http import HttpResponse
-from xhtml2pdf import pisa
 from datetime import datetime, timedelta
 from django.conf import settings
 from django.shortcuts import get_object_or_404, redirect
@@ -17,7 +12,7 @@ from django.contrib import messages
 from django.template.loader import render_to_string
 from django.core.mail import EmailMultiAlternatives
 from django.shortcuts import render
-
+from django.utils.timezone import now
 
 # Create your views here.
 def login(request):
@@ -108,9 +103,8 @@ def add_doctor(request):
     return render(request, "admin/add_doctor.html", {"departments": departments})
 
 def view_doctors(request):
-    doctors = Doctor.objects.all().order_by('-id')  # latest first
+    doctors = Doctor.objects.filter(status='pending').order_by('-id')  # only pending doctors
     return render(request, 'admin/view_doctors.html', {'doctors': doctors})
-
 
 def doctor_index(request):
     # assuming doctor logs in and their id is stored in session
@@ -166,7 +160,7 @@ def approve_doctor(request, doctor_id):
     doctor.status = 'approved'
     doctor.save()
     messages.success(request, f"Doctor {doctor.name} has been approved.")
-    return redirect('manage_doctor')  # Redirect back to the doctor list
+    return redirect(request.META.get("HTTP_REFERER", "/"))  # Redirect back to the doctor list
 
 def reject_doctor(request, doctor_id):
     doctor = get_object_or_404(Doctor, id=doctor_id)
@@ -174,7 +168,7 @@ def reject_doctor(request, doctor_id):
     doctor.status = 'rejected'
     doctor.save()
     messages.success(request, f"Doctor {doctor.name} has been rejected.")
-    return redirect('manage_doctor')  # Redirect back to the doctor list
+    return redirect(request.META.get("HTTP_REFERER", "/"))  # Redirect back to the doctor list
 
 
 def view_approved_doctors(request):
@@ -188,29 +182,53 @@ def view_rejected_doctors(request):
 
 from django.utils import timezone
 from datetime import datetime
+# def doctor_upcoming_appointments(request):
+#     today = timezone.now().date()
+
+#     # ✅ Get the logged-in doctor's ID (from session or request.user)
+#     doctor_id = request.session.get('doctor_id')  # assuming you store this after login
+
+#     if not doctor_id:
+#         return redirect('login')  # or handle unauthorized access
+
+#     doctor = get_object_or_404(Doctor, id=doctor_id)
+
+#     # ✅ Filter only this doctor's appointments
+#     appointments = Appointment.objects.filter(
+#         doctor=doctor,
+#         status='upcoming',
+#         date__gte=today
+#     ).order_by('date', 'token_number')
+
+#     return render(request, 'doctor/upcoming_appointments.html', {
+#         'appointments': appointments,
+#         'doctor': doctor
+#     })
+
+
 def doctor_upcoming_appointments(request):
-    today = timezone.now().date()
+    # Use localdate() so timezone settings are respected
+    today = timezone.localdate()
 
-    # ✅ Get the logged-in doctor's ID (from session or request.user)
-    doctor_id = request.session.get('doctor_id')  # assuming you store this after login
-
+    # Get logged-in doctor's ID from session (same as your original approach)
+    doctor_id = request.session.get('doctor_id')
     if not doctor_id:
-        return redirect('login')  # or handle unauthorized access
+        return redirect('login')
 
     doctor = get_object_or_404(Doctor, id=doctor_id)
 
-    # ✅ Filter only this doctor's appointments
+    # Filter: only appointments for this doctor that are scheduled for today
     appointments = Appointment.objects.filter(
         doctor=doctor,
         status='upcoming',
-        date__gte=today
+        date__exact=today
     ).order_by('date', 'token_number')
 
     return render(request, 'doctor/upcoming_appointments.html', {
         'appointments': appointments,
-        'doctor': doctor
+        'doctor': doctor,
+        'today': today
     })
-
 
 def start_op(request, doctor_id):
     doctor = get_object_or_404(Doctor, id=doctor_id)
@@ -400,4 +418,220 @@ def doctor_feedback_view(request, doctor_id):
     return render(request, 'doctor/doctor_feedback.html', {
         'doctor': doctor,
         'feedback_list': feedback_list,
+    })
+    
+
+def admin_token_status(request):
+    today = now().date()
+    token_data = []
+
+    doctors = Doctor.objects.all()
+
+    for doctor in doctors:
+        # All today's appointments for the doctor
+        appointments = Appointment.objects.filter(
+            doctor=doctor,
+            date=today
+        ).order_by("token_number")
+
+        # Skip doctors with no appointments
+        if not appointments.exists():
+            continue
+
+        total_tokens = appointments.count()
+
+        # Find current token (first upcoming appointment)
+        current_app = appointments.filter(status="upcoming").order_by("token_number").first()
+        current_token = current_app.token_number if current_app else None
+
+        # Determine OP status
+        status_label = "running" if current_app else "completed"
+
+        token_data.append({
+            "doctor": doctor,
+            "department": doctor.specialization.department if doctor.specialization else "",
+            "current_token": current_token,
+            "total_tokens": total_tokens,
+            "status": status_label,
+        })
+
+    return render(request, "admin/admin_token_status.html", {"token_data": token_data})
+
+
+def admin_doctor_queue(request, doctor_id):
+    today = now().date()
+
+    doctor = get_object_or_404(Doctor, id=doctor_id)
+
+    appointments = Appointment.objects.filter(
+        doctor=doctor,
+        date=today
+    ).order_by("token_number")
+
+    return render(request, "admin/admin_doctor_queue.html", {
+        "doctor": doctor,
+        "appointments": appointments
+    })
+
+
+def admin_doctor_queue(request, doctor_id):
+    today = now().date()
+
+    doctor = get_object_or_404(Doctor, id=doctor_id)
+
+    appointments = Appointment.objects.filter(
+        doctor=doctor,
+        date=today
+    ).order_by('token_number')
+
+    return render(request, "admin/admin_doctor_queue.html", {
+        "doctor": doctor,
+        "appointments": appointments
+    })
+    
+    
+def admin_reports(request):
+
+    from_date = request.GET.get('from')
+    to_date = request.GET.get('to')
+
+    appointments = Appointment.objects.all()
+    feedbacks = Feedback.objects.all()
+
+    if from_date and to_date:
+        appointments = appointments.filter(date__range=[from_date, to_date])
+        feedbacks = feedbacks.filter(created_at__date__range=[from_date, to_date])
+
+    context = {
+        "total_appointments": Appointment.objects.count(),
+        "total_feedbacks": Feedback.objects.count(),
+        "total_doctors": Doctor.objects.filter(is_approved=True).count(),
+        "appointment_list": appointments,
+        "feedback_list": feedbacks,
+    }
+    return render(request, "admin/reports.html", context)
+
+def doctor_reschedule_request(request):
+    doctor_id = request.session.get("doctor_id")
+    doctor = Doctor.objects.get(id=doctor_id)
+
+    if request.method == "POST":
+        appointment_date = request.POST.get("appointment_date")
+
+        token_start = int(request.POST['token_start'])
+        token_end = int(request.POST['token_end'])
+        reason = request.POST.get('reason', '')
+
+        RescheduleRequest.objects.create(
+            doctor=doctor,
+            appointment_date=appointment_date,   # ⭐ Save selected date
+            token_start=token_start,
+            token_end=token_end,
+            reason=reason
+        )
+
+        return redirect('doctor_reschedule_request')
+
+    return render(request, 'doctor/reschedule_request.html')
+
+from django.utils import timezone
+import datetime   # DO NOT REMOVE OR CHANGE
+
+
+def admin_reschedule_request_list(request):
+
+    # only admin check
+    if request.session.get("admin_id") is None:
+        return redirect("admin_login")
+
+    requests = RescheduleRequest.objects.all().order_by('-id')
+
+    return render(request, 'admin/reschedule_request_list.html', {
+        "requests": requests
+    })
+    
+    
+def admin_review_reschedule(request, req_id):
+    # admin auth (session)
+    if request.session.get("admin_id") is None:
+        return redirect("admin_login")
+
+    rr = get_object_or_404(RescheduleRequest, id=req_id)
+    doctor = rr.doctor
+
+    # map weekday index -> name used in doctor.working_days
+    DAYS_MAP = {
+        0: "monday",
+        1: "tuesday",
+        2: "wednesday",
+        3: "thursday",
+        4: "friday",
+        5: "saturday",
+        6: "sunday",
+    }
+
+    def get_next_working_day_after(start_date, doctor):
+        """
+        Find the next date after start_date (exclusive) when doctor.working_days includes that weekday.
+        start_date must be a date object.
+        """
+        # search up to 4 weeks to be safe
+        for i in range(1, 29):
+            candidate = start_date + datetime.timedelta(days=i)
+            weekday_name = DAYS_MAP[candidate.weekday()]
+            if weekday_name in doctor.working_days:
+                return candidate
+        # fallback: return start_date + 1 day
+        return start_date + datetime.timedelta(days=1)
+
+    # Determine base date to search from: appointment_date if present, else today
+    if rr.appointment_date:
+        base = rr.appointment_date
+    else:
+        base = timezone.localdate()
+
+    # compute proposed new reschedule date (next working day after base + 5 days)
+    proposed_next_working = get_next_working_day_after(base, doctor)
+    proposed_reschedule_date = proposed_next_working + datetime.timedelta(days=5)
+
+    # If form posted: handle approve/reject
+    if request.method == "POST" and rr.status == "pending":
+        action = request.POST.get("action")
+        admin_note = request.POST.get("admin_note", "")
+
+        if action == "reject":
+            rr.status = "rejected"
+            rr.admin_note = admin_note
+            rr.processed_at = timezone.now()
+            rr.save()
+            return redirect("admin_reschedule_request_list")
+
+        if action == "approve":
+            # Update appointments that match doctor's appointment_date and token range
+            appointments = Appointment.objects.filter(
+                doctor=doctor,
+                date=rr.appointment_date,
+                token_number__gte=rr.token_start,
+                token_number__lte=rr.token_end,
+                status="upcoming",
+            )
+
+            for appt in appointments:
+                appt.status = "rescheduled"
+                appt.rescheduled_date = proposed_reschedule_date
+                appt.save()
+
+            rr.status = "approved"
+            rr.admin_note = admin_note
+            rr.rescheduled_date = proposed_reschedule_date  # optional to store
+            rr.processed_at = timezone.now()
+            rr.save()
+
+            return redirect("admin_reschedule_request_list")
+
+    # render page — show rr and proposed_reschedule_date
+    return render(request, "admin/reschedule_review.html", {
+        "rr": rr,
+        "proposed_reschedule_date": proposed_reschedule_date,
+        "proposed_next_working": proposed_next_working,
     })

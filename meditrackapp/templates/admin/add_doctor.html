@@ -4,13 +4,13 @@
 <div class="container py-5">
   <div class="card shadow-lg border-0 rounded-4 mx-auto" style="max-width: 650px;">
     <div class="card-body">
-      <h2 class="text-center fw-bold mb-4" style="color: #0077b6;">Add Doctor</h2>
+      <h2 class="text-center fw-bold mb-4" style="color: #300a4f;">Add Doctor</h2>
 
       <!-- Django Messages -->
       {% if messages %}
       {% for message in messages %}
       <div class="alert alert-{{ message.tags }} alert-dismissible fade show border-start border-4"
-        style="border-color: #0077b6 !important;" role="alert">
+        style="border-color: #300a4f !important;" role="alert">
         {{ message }}
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
       </div>
@@ -22,28 +22,28 @@
         {% csrf_token %}
 
         <div class="mb-3">
-          <label class="form-label fw-semibold" style="color: #0077b6;">Full Name</label>
+          <label class="form-label fw-semibold" style="color: #300a4f;">Full Name</label>
           <input type="text" name="name" class="form-control" required placeholder="Enter doctor's full name">
         </div>
 
         <div class="mb-3">
-          <label class="form-label fw-semibold" style="color: #0077b6;">Phone Number</label>
+          <label class="form-label fw-semibold" style="color: #300a4f;">Phone Number</label>
           <input type="text" name="phone_number" class="form-control" required placeholder="Enter phone number">
         </div>
 
         <div class="mb-3">
-          <label class="form-label fw-semibold" style="color: #0077b6;">Email</label>
+          <label class="form-label fw-semibold" style="color: #300a4f;">Email</label>
           <input type="email" name="email" class="form-control" required placeholder="Enter email address">
         </div>
 
         <div class="mb-3">
-          <label class="form-label fw-semibold" style="color: #0077b6;">Password</label>
+          <label class="form-label fw-semibold" style="color: #300a4f;">Password</label>
           <input type="password" name="password" class="form-control" required placeholder="Enter password">
         </div>
 
         <!-- Department / Specialization -->
         <div class="mb-3">
-          <label class="form-label fw-semibold" style="color: #0077b6;">Department / Specialization</label>
+          <label class="form-label fw-semibold" style="color: #300a4f;">Department / Specialization</label>
           <select name="specialization" class="form-select" required>
             <option value="" selected disabled>Select Department</option>
             {% for dept in departments %}
@@ -54,7 +54,7 @@
 
         <div class="text-center mt-4">
           <button type="submit" class="btn px-4 py-2 fw-semibold"
-            style="background-color: #0077b6; color: #fff; border: none;">
+            style="background-color: #300a4f; color: #fff; border: none;">
             Add Doctor
           </button>
           <a href="{% url 'manage_doctor' %}" class="btn px-4 py-2 ms-2 fw-semibold"

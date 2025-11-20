@@ -1,6 +1,8 @@
 from .models import *
 from meditrackapp.models import *
 from rest_framework import serializers
+from datetime import date
+
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -113,3 +115,64 @@ class PrescriptionSerializer(serializers.ModelSerializer):
             "id", "doctor_name", "appointment_date",
             "symptoms", "notes", "created_at", "medicines"
         ]
+        
+        
+class BloodDonorSerializer(serializers.ModelSerializer):
+    user_id = serializers.IntegerField(write_only=True, required=True)  # accept user id in request
+
+    class Meta:
+        model = BloodDonor
+        fields = [
+            "id",
+            "user_id",
+            "blood_group",
+            "last_donation_date",
+            "weight",
+            "under_medication",
+            "had_recent_illness",
+            "illness_details",
+            "created_at",
+        ]
+        read_only_fields = ["id", "created_at"]
+
+    def validate_last_donation_date(self, value):
+        # Must not be in the future
+        if value and value > date.today():
+            raise serializers.ValidationError("Last donation date cannot be in the future.")
+        return value
+
+    def validate_weight(self, value):
+        # Example threshold: minimum 50 kg (adjust to local policy)
+        if value <= 0:
+            raise serializers.ValidationError("Weight must be a positive number.")
+        if value < 50:
+            raise serializers.ValidationError("Weight must be at least 50 kg to donate (adjust policy as needed).")
+        return value
+
+    def validate(self, attrs):
+        had_recent = attrs.get("had_recent_illness")
+        illness_details = attrs.get("illness_details", "").strip()
+
+        # If user had recent illness, details should be provided
+        if had_recent and not illness_details:
+            raise serializers.ValidationError({"illness_details": "Provide details of recent illness."})
+
+        # If user did not have recent illness but provided details, accept but trim
+        return attrs
+
+    def create(self, validated_data):
+        user_id = validated_data.pop("user_id")
+
+        # Import your custom user model
+        from userapp.models import User
+
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            raise serializers.ValidationError({"user_id": "User does not exist in userapp.User"})
+
+        donor, created = BloodDonor.objects.update_or_create(
+            user=user,
+            defaults=validated_data
+        )
+        return donor

@@ -23,4 +23,11 @@ urlpatterns = [
     path('prescription/<int:appointment_id>/', views.add_prescription, name='add_prescription'),
     path('doctor/<int:doctor_id>/patients/', views.doctor_patients_view, name='doctor_patients'),
     path('doctor/<int:doctor_id>/feedback/', views.doctor_feedback_view, name='doctor_feedback_view'),
+    path("admin/token-status/", admin_token_status, name="admin_token_status"),
+    path("admin/token-status/<int:doctor_id>/", admin_doctor_queue, name="admin_doctor_queue"),
+    path('admin/reports/', views.admin_reports, name='admin_reports'),
+    path('doctor/reschedule/request/', doctor_reschedule_request, name='doctor_reschedule_request'),
+    path('admin/reschedule/requests/', admin_reschedule_request_list, name='admin_reschedule_request_list'),
+    path('admin/reschedule/<int:req_id>/review/', admin_review_reschedule, name='admin_review_reschedule'),
+
 ]

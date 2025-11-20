@@ -37,6 +37,8 @@ class Doctor(models.Model):
     is_approved = models.BooleanField(default=False)
     working_days = MultiSelectField(choices=DAYS_OF_WEEK, max_length=100, blank=True)
     op_active = models.BooleanField(default=False)  # <-- Add this
+    
+
 
 from userapp.models import Appointment
 
@@ -70,3 +72,32 @@ class Medicine(models.Model):
     food_instruction = models.CharField(max_length=20, choices=FOOD_CHOICES)
     number_of_days = models.PositiveIntegerField(default=1)
     dosage = models.CharField(max_length=50, blank=True, null=True, help_text="e.g., 1 tablet, 5 ml, etc.")
+    
+    
+class RescheduleRequest(models.Model):
+
+    REQUEST_STATUS = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+        ('executed', 'Executed'),
+    ]
+
+    doctor = models.ForeignKey(Doctor, on_delete=models.CASCADE)
+
+    # ⭐ Doctor chooses WHICH date's appointments to reschedule
+    appointment_date = models.DateField(null=True, blank=True)
+
+    token_start = models.PositiveIntegerField()
+    token_end = models.PositiveIntegerField()
+
+    reason = models.TextField(blank=True, null=True)
+
+    status = models.CharField(max_length=20, choices=REQUEST_STATUS, default='pending')
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    processed_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"Reschedule Request #{self.id} (Doctor: {self.doctor.name})"

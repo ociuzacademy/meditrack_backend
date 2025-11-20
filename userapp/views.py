@@ -10,6 +10,9 @@ from datetime import timedelta
 from django.utils import timezone
 from datetime import datetime
 from django.db.models import Max
+from rest_framework import status as http_status
+import datetime 
+
 
 # Create your views here.
 # class UserRegistrationView(viewsets.ModelViewSet):
@@ -131,47 +134,94 @@ class DepartmentListView(APIView):
         return Response({"departments": serializer.data}, status=status.HTTP_200_OK)
     
     
+# class AvailableDoctorsView(APIView):
+#     def get(self, request):
+#         department_id = request.query_params.get('department_id')
+#         date_str = request.query_params.get('date')
+
+#         if not department_id or not date_str:
+#             return Response(
+#                 {"error": "department_id and date are required query parameters."},
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
+
+#         # Validate and convert date
+#         try:
+#             date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
+#         except ValueError:
+#             return Response({"error": "Invalid date format. Use YYYY-MM-DD."},
+#                             status=status.HTTP_400_BAD_REQUEST)
+
+#         # Get weekday name (monday, tuesday, etc.)
+#         day_name = date_obj.strftime('%A').lower()
+
+#         try:
+#             department = Department.objects.get(id=department_id)
+#         except Department.DoesNotExist:
+#             return Response({"error": "Department not found."}, status=status.HTTP_404_NOT_FOUND)
+
+#         # Filter doctors who belong to department and work on that day
+#         doctors = Doctor.objects.filter(
+#             specialization=department,
+#             working_days__icontains=day_name,
+#             is_approved=True
+#         )
+
+#         serializer = DoctorSerializer(doctors, many=True)
+#         return Response({
+#             "department": department.department,
+#             "date": date_str,
+#             "available_doctors": serializer.data
+#         })
+        
 class AvailableDoctorsView(APIView):
     def get(self, request):
         department_id = request.query_params.get('department_id')
         date_str = request.query_params.get('date')
 
+        # Validate query params
         if not department_id or not date_str:
             return Response(
                 {"error": "department_id and date are required query parameters."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Validate and convert date
+        # Convert and validate date
         try:
             date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
         except ValueError:
-            return Response({"error": "Invalid date format. Use YYYY-MM-DD."},
-                            status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "Invalid date format. Use YYYY-MM-DD."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
-        # Get weekday name (monday, tuesday, etc.)
+        # Convert date to weekday name
         day_name = date_obj.strftime('%A').lower()
 
+        # Validate department
         try:
             department = Department.objects.get(id=department_id)
         except Department.DoesNotExist:
-            return Response({"error": "Department not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"error": "Department not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
-        # Filter doctors who belong to department and work on that day
+        # Fetch only APPROVED doctors working on that day
         doctors = Doctor.objects.filter(
             specialization=department,
             working_days__icontains=day_name,
-            is_approved=True
+            status='approved'   # ✅ Only approved doctors
         )
 
         serializer = DoctorSerializer(doctors, many=True)
+
         return Response({
             "department": department.department,
             "date": date_str,
             "available_doctors": serializer.data
         })
-        
-        
+
 class ExpectedTokenNumberView(APIView):
     def get(self, request):
         doctor_id = request.query_params.get('doctor_id')
@@ -384,6 +434,34 @@ class UPIPaymentView(APIView):
             'status': appointment.status  # still upcoming
         }, status=status.HTTP_200_OK)
         
+class UserUpcomingAppointmentsAPIView(APIView):
+
+    def get(self, request):
+        # user_id should come from query for GET
+        user_id = request.GET.get("user_id")
+
+        if not user_id:
+            return Response(
+                {"success": False, "detail": "user_id is required."},
+                status=http_status.HTTP_400_BAD_REQUEST
+            )
+
+        # fetch only upcoming appointments
+        appointments = Appointment.objects.filter(
+            user_id=user_id,
+            status="upcoming"
+        ).order_by("date", "token_number")
+
+        serializer = AppointmentSerializer(appointments, many=True)
+
+        return Response(
+            {
+                "success": True,
+                "count": len(serializer.data),
+                "appointments": serializer.data
+            },
+            status=http_status.HTTP_200_OK
+        )
         
 class UserAppointmentListView(APIView):
     def get(self, request):
@@ -781,3 +859,137 @@ class BookingConfirmationView(APIView):
         }
 
         return Response(data, status=status.HTTP_200_OK)
+    
+    
+class AcceptRescheduleAPIView(APIView):
+
+    def patch(self, request):
+        appt_id = request.data.get("appointment_id")
+        user_id = request.data.get("user_id")
+
+        if not appt_id or not user_id:
+            return Response(
+                {"success": False, "detail": "appointment_id and user_id are required."},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+
+        appt = get_object_or_404(Appointment, id=appt_id, user_id=user_id)
+
+        if appt.status != "rescheduled" or not appt.rescheduled_date:
+            return Response(
+                {"success": False, "detail": "No pending reschedule for this appointment."},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+
+        today = timezone.localdate()
+        cutoff = appt.rescheduled_date - datetime.timedelta(days=1)
+
+        if today > cutoff:
+            appt.status = "cancelled"
+            appt.cancellation_reason = "User failed to accept before cutoff."
+            appt.save()
+            return Response(
+                {"success": False, "detail": "Acceptance window closed — appointment cancelled."},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+
+        # ==========================================================
+        # CORRECT TOKEN CALCULATION (EXCLUDE THIS APPOINTMENT)
+        # ==========================================================
+        new_date = appt.rescheduled_date
+        doctor = appt.doctor
+
+        existing_appts = Appointment.objects.filter(
+            doctor=doctor,
+            date=new_date
+        ).exclude(id=appt.id)  # <-- IMPORTANT FIX!
+
+        if existing_appts.exists():
+            new_token = existing_appts.count() + 1
+        else:
+            new_token = 1   # If no appointment on that date → token 1
+
+        # ==========================================================
+        # ACCEPT RESCHEDULE
+        # ==========================================================
+        appt.date = new_date
+        appt.rescheduled_date = None
+        appt.status = "upcoming"
+        appt.cancellation_reason = None
+        appt.token_number = new_token
+        appt.save()
+
+        return Response(
+            {
+                "success": True,
+                "message": "Appointment rescheduled successfully.",
+                "appointment_id": appt.id,
+                "new_date": appt.date,
+                "new_token": new_token,
+            },
+            status=http_status.HTTP_200_OK,
+        )
+        
+class RejectRescheduleAPIView(APIView):
+
+    def patch(self, request):
+        # -----------------------------
+        # 1. Read required fields
+        # -----------------------------
+        appt_id = request.data.get("appointment_id")
+        user_id = request.data.get("user_id")
+
+        if not appt_id or not user_id:
+            return Response(
+                {"success": False, "detail": "appointment_id and user_id are required."},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+
+        # -----------------------------
+        # 2. Get appointment for that user
+        # -----------------------------
+        appt = get_object_or_404(Appointment, id=appt_id, user_id=user_id)
+
+        # -----------------------------
+        # 3. Ensure it is rescheduled
+        # -----------------------------
+        if appt.status != "rescheduled" or not appt.rescheduled_date:
+            return Response(
+                {"success": False, "detail": "No pending reschedule for this appointment."},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+
+        # -----------------------------
+        # 4. User Rejects → Cancel appointment
+        # -----------------------------
+        appt.status = "cancelled"
+        appt.cancellation_reason = "User rejected the reschedule."
+        appt.save()
+
+        return Response(
+            {
+                "success": True,
+                "message": "Appointment cancelled successfully.",
+                "appointment_id": appt.id,
+            },
+            status=http_status.HTTP_200_OK,
+        )
+
+
+class BloodDonorRegisterView(APIView):
+
+    def post(self, request, *args, **kwargs):
+        serializer = BloodDonorSerializer(data=request.data)
+        
+        if serializer.is_valid():
+            donor = serializer.save()
+            return Response({
+                "success": True,
+                "message": "Blood donor registered successfully.",
+                "data": BloodDonorSerializer(donor).data
+            }, status=status.HTTP_201_CREATED)
+
+        return Response({
+            "success": False,
+            "errors": serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
