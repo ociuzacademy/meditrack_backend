@@ -421,6 +421,43 @@ def doctor_feedback_view(request, doctor_id):
     })
     
 
+# def admin_token_status(request):
+#     today = now().date()
+#     token_data = []
+
+#     doctors = Doctor.objects.all()
+
+#     for doctor in doctors:
+#         # All today's appointments for the doctor
+#         appointments = Appointment.objects.filter(
+#             doctor=doctor,
+#             date=today
+#         ).order_by("token_number")
+
+#         # Skip doctors with no appointments
+#         if not appointments.exists():
+#             continue
+
+#         total_tokens = appointments.count()
+
+#         # Find current token (first upcoming appointment)
+#         current_app = appointments.filter(status="upcoming").order_by("token_number").first()
+#         current_token = current_app.token_number if current_app else None
+
+#         # Determine OP status
+#         status_label = "running" if current_app else "completed"
+
+#         token_data.append({
+#             "doctor": doctor,
+#             "department": doctor.specialization.department if doctor.specialization else "",
+#             "current_token": current_token,
+#             "total_tokens": total_tokens,
+#             "status": status_label,
+#         })
+
+#     return render(request, "admin/admin_token_status.html", {"token_data": token_data})
+
+
 def admin_token_status(request):
     today = now().date()
     token_data = []
@@ -428,23 +465,22 @@ def admin_token_status(request):
     doctors = Doctor.objects.all()
 
     for doctor in doctors:
-        # All today's appointments for the doctor
         appointments = Appointment.objects.filter(
             doctor=doctor,
-            date=today
-        ).order_by("token_number")
+            date=today,
+            payment_status="completed",
+        ).exclude(status__in=["cancelled", "rescheduled"]).order_by("token_number")
 
-        # Skip doctors with no appointments
         if not appointments.exists():
             continue
 
         total_tokens = appointments.count()
 
-        # Find current token (first upcoming appointment)
-        current_app = appointments.filter(status="upcoming").order_by("token_number").first()
-        current_token = current_app.token_number if current_app else None
+        current_app = appointments.filter(
+            status__in=["upcoming", "in-progress"]
+        ).order_by("token_number").first()
 
-        # Determine OP status
+        current_token = current_app.token_number if current_app else None
         status_label = "running" if current_app else "completed"
 
         token_data.append({
@@ -458,6 +494,22 @@ def admin_token_status(request):
     return render(request, "admin/admin_token_status.html", {"token_data": token_data})
 
 
+
+# def admin_doctor_queue(request, doctor_id):
+#     today = now().date()
+
+#     doctor = get_object_or_404(Doctor, id=doctor_id)
+
+#     appointments = Appointment.objects.filter(
+#         doctor=doctor,
+#         date=today
+#     ).order_by("token_number")
+
+#     return render(request, "admin/admin_doctor_queue.html", {
+#         "doctor": doctor,
+#         "appointments": appointments
+#     })
+
 def admin_doctor_queue(request, doctor_id):
     today = now().date()
 
@@ -465,8 +517,10 @@ def admin_doctor_queue(request, doctor_id):
 
     appointments = Appointment.objects.filter(
         doctor=doctor,
-        date=today
-    ).order_by("token_number")
+        date=today,
+        payment_status="completed",
+        status__in=["upcoming", "in-progress"]   # ONLY valid queue items
+    ).exclude(status__in=["cancelled", "rescheduled"]).order_by("token_number")
 
     return render(request, "admin/admin_doctor_queue.html", {
         "doctor": doctor,
@@ -474,20 +528,20 @@ def admin_doctor_queue(request, doctor_id):
     })
 
 
-def admin_doctor_queue(request, doctor_id):
-    today = now().date()
+# def admin_doctor_queue(request, doctor_id):
+#     today = now().date()
 
-    doctor = get_object_or_404(Doctor, id=doctor_id)
+#     doctor = get_object_or_404(Doctor, id=doctor_id)
 
-    appointments = Appointment.objects.filter(
-        doctor=doctor,
-        date=today
-    ).order_by('token_number')
+#     appointments = Appointment.objects.filter(
+#         doctor=doctor,
+#         date=today
+#     ).order_by('token_number')
 
-    return render(request, "admin/admin_doctor_queue.html", {
-        "doctor": doctor,
-        "appointments": appointments
-    })
+#     return render(request, "admin/admin_doctor_queue.html", {
+#         "doctor": doctor,
+#         "appointments": appointments
+#     })
     
     
 def admin_reports(request):
@@ -497,19 +551,33 @@ def admin_reports(request):
 
     appointments = Appointment.objects.all()
     feedbacks = Feedback.objects.all()
+    donation_records = DonationRecord.objects.all()
+    blood_requests = BloodRequest.objects.all()
+    donor_acceptances = DonorAcceptance.objects.all()
 
+    # Apply Date Filter
     if from_date and to_date:
         appointments = appointments.filter(date__range=[from_date, to_date])
         feedbacks = feedbacks.filter(created_at__date__range=[from_date, to_date])
+        donation_records = donation_records.filter(donation_date__range=[from_date, to_date])
+        blood_requests = blood_requests.filter(created_at__date__range=[from_date, to_date])
+        donor_acceptances = donor_acceptances.filter(accepted_at__date__range=[from_date, to_date])
 
     context = {
         "total_appointments": Appointment.objects.count(),
         "total_feedbacks": Feedback.objects.count(),
         "total_doctors": Doctor.objects.filter(is_approved=True).count(),
+
+        # Report Lists
         "appointment_list": appointments,
         "feedback_list": feedbacks,
+        "donation_records": donation_records,
+        "blood_requests": blood_requests,
+        "donor_acceptances": donor_acceptances,
     }
+
     return render(request, "admin/reports.html", context)
+
 
 def doctor_reschedule_request(request):
     doctor_id = request.session.get("doctor_id")
@@ -535,7 +603,8 @@ def doctor_reschedule_request(request):
     return render(request, 'doctor/reschedule_request.html')
 
 from django.utils import timezone
-import datetime   # DO NOT REMOVE OR CHANGE
+# import datetime   # DO NOT REMOVE OR CHANGE
+import datetime as dt   # SAFE VERSION
 
 
 def admin_reschedule_request_list(request):
@@ -551,15 +620,126 @@ def admin_reschedule_request_list(request):
     })
     
     
+# def admin_review_reschedule(request, req_id):
+#     # admin auth (session)
+#     if request.session.get("admin_id") is None:
+#         return redirect("admin_login")
+
+#     rr = get_object_or_404(RescheduleRequest, id=req_id)
+#     doctor = rr.doctor
+
+#     # map weekday index -> name used in doctor.working_days
+#     DAYS_MAP = {
+#         0: "monday",
+#         1: "tuesday",
+#         2: "wednesday",
+#         3: "thursday",
+#         4: "friday",
+#         5: "saturday",
+#         6: "sunday",
+#     }
+
+#     def get_next_working_day_after(start_date, doctor):
+#         """
+#         Find the next date after start_date (exclusive) when doctor.working_days includes that weekday.
+#         start_date must be a date object.
+#         """
+#         # search up to 4 weeks to be safe
+#         for i in range(1, 29):
+#             candidate = start_date + datetime.timedelta(days=i)
+#             weekday_name = DAYS_MAP[candidate.weekday()]
+#             if weekday_name in doctor.working_days:
+#                 return candidate
+#         # fallback: return start_date + 1 day
+#         return start_date + datetime.timedelta(days=1)
+
+#     # Determine base date to search from: appointment_date if present, else today
+#     if rr.appointment_date:
+#         base = rr.appointment_date
+#     else:
+#         base = timezone.localdate()
+
+#     # compute proposed new reschedule date (next working day after base + 5 days)
+#     proposed_next_working = get_next_working_day_after(base, doctor)
+#     proposed_reschedule_date = proposed_next_working + datetime.timedelta(days=5)
+
+#     # If form posted: handle approve/reject
+#     if request.method == "POST" and rr.status == "pending":
+#         action = request.POST.get("action")
+#         admin_note = request.POST.get("admin_note", "")
+
+#         if action == "reject":
+#             rr.status = "rejected"
+#             rr.admin_note = admin_note
+#             rr.processed_at = timezone.now()
+#             rr.save()
+#             return redirect("admin_reschedule_request_list")
+
+#         if action == "approve":
+#             # Update appointments that match doctor's appointment_date and token range
+#             appointments = Appointment.objects.filter(
+#                 doctor=doctor,
+#                 date=rr.appointment_date,
+#                 token_number__gte=rr.token_start,
+#                 token_number__lte=rr.token_end,
+#                 status="upcoming",
+#             )
+
+#             for appt in appointments:
+#                 appt.status = "rescheduled"
+#                 appt.rescheduled_date = proposed_reschedule_date
+#                 appt.save()
+
+#             rr.status = "approved"
+#             rr.admin_note = admin_note
+#             rr.rescheduled_date = proposed_reschedule_date  # optional to store
+#             rr.processed_at = timezone.now()
+#             rr.save()
+
+#             return redirect("admin_reschedule_request_list")
+
+#     # render page — show rr and proposed_reschedule_date
+#     return render(request, "admin/reschedule_review.html", {
+#         "rr": rr,
+#         "proposed_reschedule_date": proposed_reschedule_date,
+#         "proposed_next_working": proposed_next_working,
+#     })
+
+
+# -------------------------
+# 🔔 Notification Function
+# -------------------------
+def create_reschedule_notification(user, doctor, old_date, new_date, token_number, reason):
+    title = "Appointment Rescheduled"
+
+    message = (
+        f"Your appointment with Dr. {doctor.name} originally on {old_date} "
+        f"(Token #{token_number}) has been rescheduled to {new_date}.\n"
+        f"Reason: {reason or 'Not provided'}"
+    )
+
+    Notification.objects.create(
+        user=user,
+        title=title,
+        message=message,
+        type="reschedule"   # ⭐ NEW FIELD ADDED
+    )
+
+
+
+# -------------------------
+# 🏥 ADMIN REVIEW RESCHEDULE
+# -------------------------
 def admin_review_reschedule(request, req_id):
-    # admin auth (session)
+
+    # Session check
     if request.session.get("admin_id") is None:
         return redirect("admin_login")
 
     rr = get_object_or_404(RescheduleRequest, id=req_id)
     doctor = rr.doctor
 
-    # map weekday index -> name used in doctor.working_days
+    # Map weekday number to readable string
     DAYS_MAP = {
         0: "monday",
         1: "tuesday",
@@ -570,35 +750,30 @@ def admin_review_reschedule(request, req_id):
         6: "sunday",
     }
 
+    # Function to find next working day
     def get_next_working_day_after(start_date, doctor):
-        """
-        Find the next date after start_date (exclusive) when doctor.working_days includes that weekday.
-        start_date must be a date object.
-        """
-        # search up to 4 weeks to be safe
         for i in range(1, 29):
-            candidate = start_date + datetime.timedelta(days=i)
+            candidate = start_date + dt.timedelta(days=i)
             weekday_name = DAYS_MAP[candidate.weekday()]
             if weekday_name in doctor.working_days:
                 return candidate
-        # fallback: return start_date + 1 day
-        return start_date + datetime.timedelta(days=1)
+        return start_date + dt.timedelta(days=1)
 
-    # Determine base date to search from: appointment_date if present, else today
-    if rr.appointment_date:
-        base = rr.appointment_date
-    else:
-        base = timezone.localdate()
+    # Base date to search from
+    base = rr.appointment_date if rr.appointment_date else timezone.localdate()
 
-    # compute proposed new reschedule date (next working day after base + 5 days)
+    # Auto-calc new proposed reschedule date
     proposed_next_working = get_next_working_day_after(base, doctor)
-    proposed_reschedule_date = proposed_next_working + datetime.timedelta(days=5)
+    proposed_reschedule_date = proposed_next_working + dt.timedelta(days=5)
 
-    # If form posted: handle approve/reject
+    # -------------------
+    # POST: Approve / Reject
+    # -------------------
     if request.method == "POST" and rr.status == "pending":
         action = request.POST.get("action")
         admin_note = request.POST.get("admin_note", "")
 
+        # Reject
         if action == "reject":
             rr.status = "rejected"
             rr.admin_note = admin_note
@@ -606,8 +781,9 @@ def admin_review_reschedule(request, req_id):
             rr.save()
             return redirect("admin_reschedule_request_list")
 
+        # Approve
         if action == "approve":
-            # Update appointments that match doctor's appointment_date and token range
+
             appointments = Appointment.objects.filter(
                 doctor=doctor,
                 date=rr.appointment_date,
@@ -617,21 +793,185 @@ def admin_review_reschedule(request, req_id):
             )
 
             for appt in appointments:
+                user = appt.user
+                old_date = appt.date
+                token = appt.token_number
+
+                # Update appointment
                 appt.status = "rescheduled"
                 appt.rescheduled_date = proposed_reschedule_date
                 appt.save()
 
+                # 🔔 Create notification
+                create_reschedule_notification(
+                    user=user,
+                    doctor=doctor,
+                    old_date=old_date,
+                    new_date=proposed_reschedule_date,
+                    token_number=token,
+                    reason=rr.reason
+                )
+
+            # Update request
             rr.status = "approved"
             rr.admin_note = admin_note
-            rr.rescheduled_date = proposed_reschedule_date  # optional to store
+            rr.rescheduled_date = proposed_reschedule_date
             rr.processed_at = timezone.now()
             rr.save()
 
             return redirect("admin_reschedule_request_list")
 
-    # render page — show rr and proposed_reschedule_date
+    # Render Page
     return render(request, "admin/reschedule_review.html", {
         "rr": rr,
         "proposed_reschedule_date": proposed_reschedule_date,
         "proposed_next_working": proposed_next_working,
     })
+    
+    
+def doctor_blood_request_view(request):
+
+    # 🔐 Check session login
+    if 'doctor_id' not in request.session:
+        messages.error(request, "Please login to continue.")
+        return redirect('login')
+
+    doctor_id = request.session['doctor_id']
+    doctor = Doctor.objects.get(id=doctor_id)
+
+    if request.method == "POST":
+        blood_group = request.POST.get("blood_group")
+        units_required = request.POST.get("units_required")
+        location = request.POST.get("location")
+        donation_type = request.POST.get("donation_type")
+        donation_date = request.POST.get("donation_date")   # ⭐ NEW
+        reason = request.POST.get("reason")
+
+        # Convert empty date → None
+        if donation_date == "":
+            donation_date = None
+
+        # Create blood request record
+        BloodRequest.objects.create(
+            doctor=doctor,
+            blood_group=blood_group,
+            units_required=units_required,
+            location=location,
+            donation_type=donation_type,
+            donation_date=donation_date,   # ⭐ SAVE NEW FIELD
+            reason=reason
+        )
+
+        messages.success(request, "Blood request submitted successfully!")
+        return redirect("doctor_blood_request")
+
+    return render(request, "doctor/request_blood.html", {"doctor": doctor})
+
+
+
+
+def admin_view_blood_requests(request):
+    requests = BloodRequest.objects.all().order_by('-created_at')
+    return render(request, "admin/blood_requests.html", {"requests": requests})
+
+
+# def admin_approve_blood_request(request, req_id):
+#     req = BloodRequest.objects.get(id=req_id)
+#     req.status = "approved"
+#     req.save()
+
+#     donors = BloodDonor.objects.filter(
+#         blood_group=req.blood_group,
+#         location=req.location
+#     )
+
+#     for donor in donors:
+#         Notification.objects.create(
+#             user=donor.user,
+#             title="Urgent Blood Needed",
+#             message=f"{req.blood_group} blood needed at {req.location}. Please help!"
+#         )
+
+#     messages.success(request, "Request Approved and donors notified!")
+#     return redirect("admin_blood_requests")
+
+def admin_approve_blood_request(request, req_id):
+    try:
+        req = BloodRequest.objects.get(id=req_id)
+    except BloodRequest.DoesNotExist:
+        messages.error(request, "Blood request not found.")
+        return redirect("admin_blood_requests")
+
+    # Approve the blood request
+    req.status = "approved"
+    req.save()
+
+    # Find donors who match the blood group & location
+    donors = BloodDonor.objects.filter(
+        blood_group=req.blood_group,
+        location=req.location
+    )
+
+    # Format donation date if available
+    donation_date_text = req.donation_date.strftime("%d-%m-%Y") if req.donation_date else "As soon as possible"
+
+    # Create notifications
+    for donor in donors:
+        Notification.objects.create(
+            user=donor.user,
+            title="Urgent Blood Donation Needed",
+            message=(
+                f"Dear Donor, your blood type {req.blood_group} is urgently needed at {req.location}.\n"
+                f"➡ Donation Type: {req.donation_type}\n"
+                f"➡ Units Required: {req.units_required}\n"
+                f"➡ Preferred Donation Date: {donation_date_text}\n"
+                f"➡ Reason: {req.reason}\n\n"
+                f"Please help if you are available."
+            ),
+            type="blood"   # ⭐ Added notification category
+        )
+
+    messages.success(request, "Blood request approved and donors have been notified!")
+    return redirect("admin_blood_requests")
+
+def admin_reject_blood_request(request, req_id):
+    req = BloodRequest.objects.get(id=req_id)
+    req.status = "rejected"
+    req.save()
+
+    messages.warning(request, "Request Rejected!")
+    return redirect("admin_blood_requests")
+
+
+def admin_view_accepted_donors(request, req_id):
+    req = get_object_or_404(BloodRequest, id=req_id)
+    accepted_donors = DonorAcceptance.objects.filter(request=req)
+
+    return render(request, "admin/accepted_donors.html", {
+        "request_obj": req,
+        "accepted_donors": accepted_donors
+    })
+    
+
+def admin_complete_donation(request, accept_id):
+    acceptance = get_object_or_404(DonorAcceptance, id=accept_id)
+
+    acceptance.status = "completed"
+    acceptance.save()
+
+    donor = acceptance.donor
+    req = acceptance.request
+
+    DonationRecord.objects.create(
+        donor=donor,
+        donation_date=req.donation_date or timezone.now().date(),
+        location=req.location,
+        donation_type=req.donation_type,
+        units=req.units_required
+    )
+
+    donor.last_donation_date = req.donation_date or timezone.now().date()
+    donor.save()
+
+    messages.success(request, "Donation marked as completed.")
+    return redirect("admin_blood_requests")

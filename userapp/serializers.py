@@ -74,7 +74,8 @@ class AppointmentListSerializer(serializers.ModelSerializer):
 
 class AppointmentDetailSerializer(serializers.ModelSerializer):
     doctor_name = serializers.CharField(source='doctor.name', read_only=True)
-    department_name = serializers.CharField(source='doctor.specialization', read_only=True)
+    doctor_image= serializers.ImageField(source='doctor.image',read_only=True)
+    department_name = serializers.CharField(source='doctor.specialization.department', read_only=True)
     user_name = serializers.CharField(source='user.username', read_only=True)
 
     class Meta:
@@ -83,6 +84,7 @@ class AppointmentDetailSerializer(serializers.ModelSerializer):
             'id',
             'user_name',
             'doctor_name',
+            'doctor_image',
             'department_name',
             'date',
             'token_number',
@@ -126,6 +128,7 @@ class BloodDonorSerializer(serializers.ModelSerializer):
             "id",
             "user_id",
             "blood_group",
+            "location",
             "last_donation_date",
             "weight",
             "under_medication",
@@ -176,3 +179,29 @@ class BloodDonorSerializer(serializers.ModelSerializer):
             defaults=validated_data
         )
         return donor
+    
+    
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
+        fields = ["id", "title", "type","message", "created_at"]
+        
+        
+class BloodRequestSerializer(serializers.ModelSerializer):
+    doctor_name = serializers.CharField(source='doctor.full_name', read_only=True)
+
+    class Meta:
+        model = BloodRequest
+        fields = [
+            'id',
+            'doctor',
+            'doctor_name',
+            'blood_group',
+            'units_required',
+            'donation_date',
+            'donation_type',    
+            'location',
+            'reason',
+            'status',
+            'created_at'
+        ]

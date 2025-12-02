@@ -1,5 +1,7 @@
 from django.db import models
 from meditrackapp.models import *
+# from meditrackapp.models import *
+# from meditrackapp.models import Doctor
 
 # Create your models here.
 class User(models.Model):
@@ -28,7 +30,7 @@ class Appointment(models.Model):
     ]
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='appointments')
-    doctor = models.ForeignKey(Doctor, on_delete=models.CASCADE, related_name='appointments')
+    doctor = models.ForeignKey("meditrackapp.Doctor", on_delete=models.CASCADE, related_name='doctor_appointments')
     date = models.DateField()
     token_number = models.PositiveIntegerField(blank=True, null=True)
     symptoms = models.TextField(blank=True, null=True)
@@ -83,9 +85,16 @@ class BloodDonor(models.Model):
         ("AB+", "AB+"), ("AB-", "AB-"),
         ("O+", "O+"), ("O-", "O-"),
     ]
+    
+    Location_Choices=[
+        ('Thrissur','thrissur'),
+        ('Ernakulam','ernankulam'),
+        ('Palakkad','palakkad'),
+    ]
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="blood_donor_profile")
     blood_group = models.CharField(max_length=3, choices=BLOOD_GROUP_CHOICES)
+    location= models.CharField(max_length=100, choices=Location_Choices)
     last_donation_date = models.DateField(null=True, blank=True)
     weight = models.DecimalField(max_digits=5, decimal_places=2)  # e.g., 70.50
     under_medication = models.BooleanField(default=False)
@@ -99,3 +108,37 @@ class BloodDonor(models.Model):
 
     def __str__(self):
         return f"Donor: {self.user_id} ({self.blood_group})"
+    
+    
+class DonationRecord(models.Model):
+    DONATION_TYPES = [
+        ('Whole Blood', 'Whole Blood'),
+        ('Red Cells', 'Red Cells'),
+        ('Plasma', 'Plasma'),
+        ('Platelets', 'Platelets'),
+    ]
+
+    donor = models.ForeignKey(BloodDonor, on_delete=models.CASCADE, related_name="donation_records")
+    donation_date = models.DateField()
+    location = models.CharField(max_length=200)
+    donation_type = models.CharField(max_length=50, choices=DONATION_TYPES)
+    units = models.IntegerField()
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.donor.user.username} - {self.donation_type} ({self.donation_date})"
+    
+
+class DonorAcceptance(models.Model):
+    donor = models.ForeignKey(BloodDonor, on_delete=models.CASCADE)
+    request = models.ForeignKey("meditrackapp.BloodRequest", on_delete=models.CASCADE)
+    accepted_at = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(
+        max_length=20,
+        choices=[('accepted', 'Accepted'), ('completed', 'Completed')],
+        default='accepted'
+    )
+
+    def __str__(self):
+        return f"{self.donor.user.username} → {self.request.id} ({self.status})"

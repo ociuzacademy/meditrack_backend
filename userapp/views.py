@@ -1,4 +1,5 @@
 from django.shortcuts import get_object_or_404, render,redirect
+from django.db.models import Q
 from .models import *
 from meditrackapp.models import *
 from .serializers import *
@@ -12,6 +13,7 @@ from datetime import datetime
 from django.db.models import Max
 from rest_framework import status as http_status
 import datetime 
+from rest_framework.generics import ListAPIView
 
 
 # Create your views here.
@@ -174,19 +176,19 @@ class DepartmentListView(APIView):
 #             "available_doctors": serializer.data
 #         })
         
+from datetime import datetime
+
 class AvailableDoctorsView(APIView):
     def get(self, request):
         department_id = request.query_params.get('department_id')
         date_str = request.query_params.get('date')
 
-        # Validate query params
         if not department_id or not date_str:
             return Response(
                 {"error": "department_id and date are required query parameters."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Convert and validate date
         try:
             date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
         except ValueError:
@@ -195,10 +197,8 @@ class AvailableDoctorsView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Convert date to weekday name
         day_name = date_obj.strftime('%A').lower()
 
-        # Validate department
         try:
             department = Department.objects.get(id=department_id)
         except Department.DoesNotExist:
@@ -207,11 +207,10 @@ class AvailableDoctorsView(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        # Fetch only APPROVED doctors working on that day
         doctors = Doctor.objects.filter(
             specialization=department,
             working_days__icontains=day_name,
-            status='approved'   # ✅ Only approved doctors
+            status='approved'
         )
 
         serializer = DoctorSerializer(doctors, many=True)
@@ -221,6 +220,7 @@ class AvailableDoctorsView(APIView):
             "date": date_str,
             "available_doctors": serializer.data
         })
+
 
 class ExpectedTokenNumberView(APIView):
     def get(self, request):
@@ -434,34 +434,60 @@ class UPIPaymentView(APIView):
             'status': appointment.status  # still upcoming
         }, status=status.HTTP_200_OK)
         
-class UserUpcomingAppointmentsAPIView(APIView):
+# class UserUpcomingAppointmentsAPIView(APIView):
 
-    def get(self, request):
-        # user_id should come from query for GET
-        user_id = request.GET.get("user_id")
+#     def get(self, request):
+#         # user_id should come from query for GET
+#         user_id = request.GET.get("user_id")
+
+#         if not user_id:
+#             return Response(
+#                 {"success": False, "detail": "user_id is required."},
+#                 status=http_status.HTTP_400_BAD_REQUEST
+#             )
+
+#         # fetch only upcoming appointments
+#         appointments = Appointment.objects.filter(
+#             user_id=user_id,
+#             status="upcoming"
+#         ).order_by("date", "token_number")
+
+#         serializer = AppointmentSerializer(appointments, many=True)
+
+#         return Response(
+#             {
+#                 "success": True,
+#                 "count": len(serializer.data),
+#                 "appointments": serializer.data
+#             },
+#             status=http_status.HTTP_200_OK
+#         )
+
+class UpcomingAppointmentsView(APIView):
+
+    def get(self, request, *args, **kwargs):
+
+        user_id = request.query_params.get("user_id")
 
         if not user_id:
-            return Response(
-                {"success": False, "detail": "user_id is required."},
-                status=http_status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"success": False, "error": "user_id is required"}, status=400)
 
-        # fetch only upcoming appointments
+        today = timezone.now().date()
+
+        # Fetch upcoming appointments (future only)
         appointments = Appointment.objects.filter(
             user_id=user_id,
-            status="upcoming"
+            status="upcoming",
+            date__gte=today
         ).order_by("date", "token_number")
 
         serializer = AppointmentSerializer(appointments, many=True)
 
-        return Response(
-            {
-                "success": True,
-                "count": len(serializer.data),
-                "appointments": serializer.data
-            },
-            status=http_status.HTTP_200_OK
-        )
+        return Response({
+            "success": True,
+            "count": len(appointments),
+            "appointments": serializer.data
+        }, status=200)
         
 class UserAppointmentListView(APIView):
     def get(self, request):
@@ -993,3 +1019,319 @@ class BloodDonorRegisterView(APIView):
             "success": False,
             "errors": serializer.errors
         }, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+# class UserNotificationsView(ListAPIView):
+#     serializer_class = NotificationSerializer
+
+#     def list(self, request, *args, **kwargs):
+#         user_id = request.query_params.get("user_id")
+
+#         # Validate parameter
+#         if not user_id:
+#             return Response(
+#                 {"error": "user_id query parameter is required"},
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
+
+#         # Validate user exists
+#         if not User.objects.filter(id=user_id).exists():
+#             return Response(
+#                 {"error": "User not found"},
+#                 status=status.HTTP_404_NOT_FOUND
+#             )
+
+#         # Fetch notifications
+#         notifications = Notification.objects.filter(
+#             user_id=user_id
+#         ).order_by("-created_at")
+
+#         serializer = self.get_serializer(notifications, many=True)
+#         return Response(serializer.data, status=200)
+
+
+
+class UserNotificationsView(ListAPIView):
+    serializer_class = NotificationSerializer
+
+    def list(self, request, *args, **kwargs):
+        user_id = request.query_params.get("user_id")
+
+        # Validate
+        if not user_id:
+            return Response({"error": "user_id is required"}, status=400)
+
+        if not User.objects.filter(id=user_id).exists():
+            return Response({"error": "User not found"}, status=404)
+
+        # ---------------------------------------------------
+        # Base queryset (ALL notifications)
+        # ---------------------------------------------------
+        qs = Notification.objects.filter(user_id=user_id).order_by("-created_at")
+
+        # ---------------------------------------------------
+        # ⭐ NEW: Apply blood notification filtering for donors
+        # ---------------------------------------------------
+        try:
+            donor = BloodDonor.objects.get(user_id=user_id)
+
+            qs = Notification.objects.filter(
+                user_id=user_id
+            ).filter(
+                Q(type="reschedule") |
+                (
+                    Q(type="blood") &
+                    Q(message__icontains=donor.blood_group) &
+                    Q(message__icontains=donor.location.capitalize())
+                )
+            ).order_by("-created_at")
+
+        except BloodDonor.DoesNotExist:
+            pass  # user is not a donor → return all notifications
+
+        # ---------------------------------------------------
+        # ⭐ No limit applied → return ALL
+        # ---------------------------------------------------
+
+        serializer = self.get_serializer(qs, many=True)
+        return Response(serializer.data, status=200)
+
+    
+class AcceptBloodRequestView(APIView):
+
+    def post(self, request, *args, **kwargs):
+        donor_id = request.data.get("donor_id")
+        request_id = request.data.get("request_id")
+
+        # ----------- Validate donor -----------
+        try:
+            donor = BloodDonor.objects.get(id=donor_id)
+        except BloodDonor.DoesNotExist:
+            return Response(
+                {"error": "Invalid donor_id"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # ----------- Validate blood request -----------
+        try:
+            blood_req = BloodRequest.objects.get(id=request_id, status="approved")
+        except BloodRequest.DoesNotExist:
+            return Response(
+                {"error": "Blood request not found or not approved yet"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        donation_type = blood_req.donation_type
+
+        # **********************************************************
+        #   ⭐ CHECK MINIMUM DONATION INTERVAL
+        # **********************************************************
+        last_date = donor.last_donation_date
+
+        if last_date:
+            today = timezone.now().date()
+
+            # Determine required interval
+            if donation_type == "Whole Blood":
+                required_gap = timedelta(days=56)
+            elif donation_type == "Red Cells":
+                required_gap = timedelta(days=112)
+            elif donation_type == "Plasma":
+                required_gap = timedelta(days=14)
+            elif donation_type == "Platelets":
+                required_gap = timedelta(days=7)
+            else:
+                required_gap = timedelta(days=56)  # default safety rule
+
+            next_eligible_date = last_date + required_gap
+
+            # Not eligible yet
+            if today < next_eligible_date:
+                return Response(
+                    {
+                        "error": "Donor not eligible for donation yet",
+                        "last_donation_date": str(last_date),
+                        "next_eligible_date": str(next_eligible_date),
+                        "required_gap_days": required_gap.days
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        # **********************************************************
+        #   Prevent duplicate acceptance
+        # **********************************************************
+        if DonorAcceptance.objects.filter(donor=donor, request=blood_req).exists():
+            return Response(
+                {"message": "You have already accepted this blood request"},
+                status=status.HTTP_200_OK
+            )
+
+        # ----------- Create acceptance record -----------
+        DonorAcceptance.objects.create(
+            donor=donor,
+            request=blood_req
+        )
+
+        return Response(
+            {"message": "Donation accepted successfully!"},
+            status=status.HTTP_201_CREATED
+        )
+        
+
+class AddDonationRecordView(APIView):
+
+    def post(self, request, *args, **kwargs):
+        donor_id = request.data.get("donor_id")
+        donation_date = request.data.get("date")
+        location = request.data.get("location")
+        donation_type = request.data.get("donation_type")
+        units = request.data.get("units")
+
+        # -------- Validate donor --------
+        try:
+            donor = BloodDonor.objects.get(id=donor_id)
+        except BloodDonor.DoesNotExist:
+            return Response(
+                {"error": "Invalid donor_id"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # -------- Validate required fields --------
+        if not donation_date or not location or not donation_type or not units:
+            return Response(
+                {"error": "All fields (date, location, donation_type, units) are required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # -------- Create Donation Record --------
+        record = DonationRecord.objects.create(
+            donor=donor,
+            donation_date=donation_date,
+            location=location,
+            donation_type=donation_type,
+            units=units
+        )
+
+        # -------- Update Donor Last Donation Date --------
+        donor.last_donation_date = donation_date
+        donor.save()
+
+        return Response(
+            {
+                "message": "Donation record added successfully!",
+                "record_id": record.id
+            },
+            status=status.HTTP_201_CREATED
+        )
+        
+        
+class BloodRequestsForDonorView(APIView):
+
+    def get(self, request, *args, **kwargs):
+        donor_id = request.query_params.get("donor_id")
+
+        # ---------- Validate donor ----------
+        try:
+            donor = BloodDonor.objects.get(id=donor_id)
+        except BloodDonor.DoesNotExist:
+            return Response(
+                {"error": "Invalid donor_id"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        today = timezone.now().date()
+
+        # ---------- Filter blood requests ----------
+        requests = BloodRequest.objects.filter(
+            blood_group=donor.blood_group,
+            status="approved"  # only approved ones are meaningful for donor
+        ).filter(
+            # Do not show past donation dates
+            Q(donation_date__gte=today) | Q(donation_date__isnull=True)
+        ).order_by("-created_at")
+
+        # ---------- Format response ----------
+        data = [
+            {
+                "id": req.id,
+                "doctor": req.doctor.name,
+                "blood_group": req.blood_group,
+                "units_required": req.units_required,
+                "donation_type": req.donation_type,
+                "donation_date": req.donation_date,
+                "location": req.location,
+                "reason": req.reason,
+                "created_at": req.created_at,
+            }
+            for req in requests
+        ]
+
+        return Response(data, status=200)
+    
+    
+class CommonBloodRequestListView(APIView):
+
+    def get(self, request, *args, **kwargs):
+        today = timezone.now().date()
+
+        # Fetch all approved & non-expired blood requests
+        requests = BloodRequest.objects.filter(
+            status="approved"
+        ).filter(
+            Q(donation_date__gte=today) | Q(donation_date__isnull=True)
+        ).order_by("-created_at")
+
+        data = [
+            {
+                "id": req.id,
+                "doctor": req.doctor.name,
+                "blood_group": req.blood_group,
+                "units_required": req.units_required,
+                "donation_type": req.donation_type,
+                "donation_date": req.donation_date,
+                "location": req.location,
+                "reason": req.reason,
+                "created_at": req.created_at,
+            }
+            for req in requests
+        ]
+
+        return Response(data, status=200)
+    
+    
+class DonorDonationHistoryView(APIView):
+
+    def get(self, request, *args, **kwargs):
+        donor_id = request.query_params.get("donor_id")
+
+        # Validate donor
+        try:
+            donor = BloodDonor.objects.get(id=donor_id)
+        except BloodDonor.DoesNotExist:
+            return Response(
+                {"error": "Invalid donor_id"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Fetch all donation records
+        records = DonationRecord.objects.filter(
+            donor=donor
+        ).order_by("-donation_date")
+
+        # Format response
+        data = [
+            {
+                "record_id": record.id,
+                "donation_date": record.donation_date,
+                "location": record.location,
+                "donation_type": record.donation_type,
+                "units": record.units,
+                "created_at": record.created_at,
+            }
+            for record in records
+        ]
+
+        return Response(data, status=200)
+    
+    

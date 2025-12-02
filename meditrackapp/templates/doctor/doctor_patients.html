@@ -1,124 +1,237 @@
 {% extends 'doctor/doctor_index.html' %}
 {% block content %}
-  <style>
-    body { background-color: #f7f9fc; }
-    .search-box { max-width: 400px; }
-  </style>
-</head>
-<body>
-  <div class="container py-4">
-    <h3 class="mb-4">Dr. {{ doctor.name }}'s Patient Medical History</h3>
-    <!-- <p class="text-muted">Only completed appointments are shown.</p> -->
 
-    <!-- 🔍 Search Form -->
+<style>
+    body {
+        background-color: #f5f7fb !important;
+        font-family: "Poppins", sans-serif;
+    }
+
+    /* Title */
+    h3 {
+        color: #023e8a;
+        font-weight: 700;
+    }
+
+    /* Search Box */
+    .search-box {
+        max-width: 400px;
+        border-radius: 10px;
+        border: 1px solid #0077b6;
+    }
+
+    .btn-primary {
+        background-color: #0077b6;
+        border: none;
+        font-weight: 600;
+        border-radius: 8px;
+    }
+
+    .btn-primary:hover {
+        background-color: #005f8e;
+    }
+
+    /* Patient Card */
+    .card {
+        border-radius: 15px;
+        overflow: hidden;
+        box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08);
+        transition: 0.3s ease;
+    }
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 12px 25px rgba(0, 0, 0, 0.12);
+    }
+
+    .card-img-top {
+        height: 180px;
+        object-fit: cover;
+        background: #e0f1ff;
+    }
+
+    .card-title {
+        color: #023e8a;
+        font-weight: 700;
+    }
+
+    .card small {
+        color: #555;
+    }
+
+    /* Modal Header */
+    .modal-header {
+        background-color: #0077b6;
+    }
+    .modal-title {
+        font-weight: 700;
+        color: white;
+    }
+
+    /* Tables inside Modal */
+    table th {
+        background: #0077b6;
+        color: white;
+        text-align: center;
+        font-size: 0.9rem;
+    }
+
+    table td {
+        text-align: center;
+        vertical-align: middle;
+        font-size: 0.9rem;
+    }
+
+    .modal-body h6 {
+        color: #023e8a;
+        font-weight: 600;
+    }
+
+    .modal-footer .btn-secondary {
+        border-radius: 8px;
+    }
+
+    /* No results */
+    .alert-info {
+        background: #dff4ff;
+        color: #023e8a;
+        border-radius: 10px;
+        border: 1px solid #90d7ff;
+    }
+</style>
+
+<div class="container py-4">
+    <h3 class="mb-4">Dr. {{ doctor.name }}'s Patient Medical History</h3>
+
+    <!-- Search Form -->
     <form method="get" class="mb-4 d-flex justify-content-center">
-      <input 
-        type="text" 
-        name="search" 
-        value="{{ search_query }}" 
-        class="form-control search-box me-2" 
-        placeholder="Search patient by name, email, or phone...">
-      <button type="submit" class="btn btn-primary">Search</button>
+        <input
+            type="text"
+            name="search"
+            value="{{ search_query }}"
+            class="form-control search-box me-2"
+            placeholder="Search patient by name, email, or phone..."
+        >
+        <button type="submit" class="btn btn-primary">
+            Search
+        </button>
     </form>
 
     {% if patient_data %}
-      <div class="row">
+    <div class="row">
         {% for patient, records in patient_data.items %}
-          <div class="col-md-4 mb-4">
+        <div class="col-md-4 mb-4">
             <div class="card shadow-sm text-center">
-              {% if patient.image %}
+
+                {% if patient.image %}
                 <img src="{{ patient.image.url }}" class="card-img-top" alt="{{ patient.username }}">
-              {% else %}
+                {% else %}
                 <img src="https://cdn-icons-png.flaticon.com/512/2922/2922510.png" class="card-img-top" alt="User">
-              {% endif %}
-              <div class="card-body">
-                <h5 class="card-title">{{ patient.username }}</h5>
-                <p class="card-text">
-                  <small>{{ patient.email }}<br>{{ patient.phone }}</small>
-                </p>
-                <button 
-                  class="btn btn-primary w-100" 
-                  data-bs-toggle="modal" 
-                  data-bs-target="#historyModal{{ patient.id }}">
-                  View History
-                </button>
-              </div>
-            </div>
-          </div>
+                {% endif %}
 
-          <!-- 🩺 Patient History Modal -->
-          <div class="modal fade" id="historyModal{{ patient.id }}" tabindex="-1" aria-labelledby="historyModalLabel{{ patient.id }}" aria-hidden="true">
+                <div class="card-body">
+                    <h5 class="card-title">{{ patient.username }}</h5>
+                    <p class="card-text">
+                        <small>{{ patient.email }}<br>{{ patient.phone }}</small>
+                    </p>
+
+                    <button class="btn btn-primary w-100"
+                        data-bs-toggle="modal"
+                        data-bs-target="#historyModal{{ patient.id }}">
+                        View History
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Patient History Modal -->
+        <div class="modal fade" id="historyModal{{ patient.id }}" tabindex="-1"
+            aria-labelledby="historyModalLabel{{ patient.id }}" aria-hidden="true">
+
             <div class="modal-dialog modal-lg modal-dialog-scrollable">
-              <div class="modal-content">
-                <div class="modal-header bg-primary text-white">
-                  <h5 class="modal-title" id="historyModalLabel{{ patient.id }}">
-                    Medical History - {{ patient.username }}
-                  </h5>
-                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
+                <div class="modal-content">
 
-                  {% if records %}
-                    {% for record in records %}
-                      <div class="border-bottom pb-3 mb-3">
-                        <h6>Appointment on {{ record.appointment.date }} at {{ record.appointment.time }}</h6>
-                        <p><strong>Status:</strong> {{ record.appointment.status|capfirst }}</p>
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="historyModalLabel{{ patient.id }}">
+                            Medical History - {{ patient.username }}
+                        </h5>
+                        <button type="button" class="btn-close bg-white" data-bs-dismiss="modal"></button>
+                    </div>
 
-                        {% if record.prescription %}
-                          <p><strong>Symptoms:</strong> {{ record.prescription.symptoms|default:"—" }}</p>
-                          <p><strong>Notes:</strong> {{ record.prescription.notes|default:"—" }}</p>
+                    <div class="modal-body">
 
-                          {% if record.medicines %}
+                        {% if records %}
+                        {% for record in records %}
+                        <div class="border-bottom pb-3 mb-3">
+
+                            <h6>Appointment on {{ record.appointment.date }} at {{ record.appointment.time }}</h6>
+                            <p><strong>Status:</strong> {{ record.appointment.status|capfirst }}</p>
+
+                            {% if record.prescription %}
+                            <p><strong>Symptoms:</strong> {{ record.prescription.symptoms|default:"—" }}</p>
+                            <p><strong>Notes:</strong> {{ record.prescription.notes|default:"—" }}</p>
+
+                            {% if record.medicines %}
                             <h6>Medicines</h6>
+
                             <table class="table table-sm table-bordered align-middle">
-                              <thead>
-                                <tr>
-                                  <th>Name</th>
-                                  <th>Dosage</th>
-                                  <th>Frequency</th>
-                                  <th>Time</th>
-                                  <th>Food</th>
-                                  <th>Days</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {% for med in record.medicines %}
-                                  <tr>
-                                    <td>{{ med.name }}</td>
-                                    <td>{{ med.dosage|default:"—" }}</td>
-                                    <td>{{ med.frequency }}x/day</td>
-                                    <td>{{ med.time_of_day|join:", " }}</td>
-                                    <td>{{ med.food_instruction|title }}</td>
-                                    <td>{{ med.number_of_days }}</td>
-                                  </tr>
-                                {% endfor %}
-                              </tbody>
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Dosage</th>
+                                        <th>Frequency</th>
+                                        <th>Time</th>
+                                        <th>Food</th>
+                                        <th>Days</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for med in record.medicines %}
+                                    <tr>
+                                        <td>{{ med.name }}</td>
+                                        <td>{{ med.dosage|default:"—" }}</td>
+                                        <td>{{ med.frequency }}x/day</td>
+                                        <td>{{ med.time_of_day|join:", " }}</td>
+                                        <td>{{ med.food_instruction|title }}</td>
+                                        <td>{{ med.number_of_days }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
                             </table>
-                          {% else %}
+
+                            {% else %}
                             <p class="text-muted">No medicines prescribed.</p>
-                          {% endif %}
+                            {% endif %}
+
+                            {% else %}
+                            <p class="text-muted">No prescription for this appointment.</p>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
                         {% else %}
-                          <p class="text-muted">No prescription for this appointment.</p>
+                        <p>No completed appointments found.</p>
                         {% endif %}
-                      </div>
-                    {% endfor %}
-                  {% else %}
-                    <p>No completed appointments found.</p>
-                  {% endif %}
+
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary"
+                            data-bs-dismiss="modal">Close</button>
+                    </div>
+
                 </div>
-                <div class="modal-footer">
-                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                </div>
-              </div>
             </div>
-          </div>
+        </div>
 
         {% endfor %}
-      </div>
-    {% else %}
-      <div class="alert alert-info text-center">No completed appointments found for your search.</div>
-    {% endif %}
-  </div>
+    </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    {% else %}
+    <div class="alert alert-info text-center">
+        No completed appointments found for your search.
+    </div>
+    {% endif %}
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
 {% endblock %}

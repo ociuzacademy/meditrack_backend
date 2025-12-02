@@ -77,7 +77,7 @@
         background: #230636;
     }
 
-    /* Rounded Modern Table */
+    /* Modern Rounded Table */
     .custom-table {
         width: 100%;
         border-collapse: separate;
@@ -114,7 +114,8 @@
 
 <div class="container py-4">
 
-    <h2 class="page-title">📊 Reports Dashboard</h2>
+    <!-- TITLE -->
+    <h2 class="page-title"> Reports Dashboard</h2>
 
     <!-- Info Cards -->
     <div class="row g-4">
@@ -147,12 +148,12 @@
         <form method="GET" class="row g-3">
             <div class="col-md-5">
                 <label>From Date</label>
-                <input type="date" name="from" class="form-control">
+                <input type="date" name="from" class="form-control" value="{{ request.GET.from }}">
             </div>
 
             <div class="col-md-5">
                 <label>To Date</label>
-                <input type="date" name="to" class="form-control">
+                <input type="date" name="to" class="form-control" value="{{ request.GET.to }}">
             </div>
 
             <div class="col-md-2 d-flex align-items-end">
@@ -162,7 +163,7 @@
     </div>
 
     <!-- Appointment Table -->
-    <h3 class="section-title">📅 Appointment Summary</h3>
+    <h3 class="section-title"> Appointment Summary</h3>
 
     <table class="custom-table mb-5">
         <thead>
@@ -190,8 +191,10 @@
         </tbody>
     </table>
 
+
+
     <!-- Feedback Table -->
-    <h3 class="section-title">💬 Feedback Summary</h3>
+    <h3 class="section-title"> Feedback Summary</h3>
 
     <table class="custom-table mb-5">
         <thead>
@@ -219,6 +222,129 @@
             </tr>
             {% empty %}
             <tr><td colspan="7">No feedback found</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+
+
+    <!-- Blood Requests -->
+    <h3 class="section-title"> Blood Requests</h3>
+
+    <table class="custom-table mb-5">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Doctor</th>
+                <th>Blood Group</th>
+                <th>Units</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Location</th>
+                <th>Requested At</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            {% for r in blood_requests %}
+            <tr>
+                <td>{{ forloop.counter }}</td>
+                <td>{{ r.doctor.name }}</td>
+                <td>{{ r.blood_group }}</td>
+                <td>{{ r.units_required }}</td>
+                <td>{{ r.donation_type }}</td>
+
+                <td>
+                    {% if r.status == "approved" %}
+                        <span class="badge bg-success">Approved</span>
+                    {% elif r.status == "pending" %}
+                        <span class="badge bg-warning text-dark">Pending</span>
+                    {% else %}
+                        <span class="badge bg-danger">Rejected</span>
+                    {% endif %}
+                </td>
+
+                <td>{{ r.location }}</td>
+                <td>{{ r.created_at|date:"Y-m-d" }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="8">No blood requests found</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+
+
+    <!-- Donor Acceptances -->
+    <h3 class="section-title"> Donor Acceptances</h3>
+
+    <table class="custom-table mb-5">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Donor</th>
+                <th>Blood Group</th>
+                <th>Request ID</th>
+                <th>Status</th>
+                <th>Accepted At</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            {% for d in donor_acceptances %}
+            <tr>
+                <td>{{ forloop.counter }}</td>
+                <td>{{ d.donor.user.username }}</td>
+                <td>{{ d.donor.blood_group }}</td>
+                <td>{{ d.request.id }}</td>
+
+                <td>
+                    {% if d.status == 'completed' %}
+                        <span class="badge bg-success">Completed</span>
+                    {% else %}
+                        <span class="badge bg-primary">Accepted</span>
+                    {% endif %}
+                </td>
+
+                <td>{{ d.accepted_at|date:"Y-m-d" }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6">No donor acceptances found</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+
+
+    <!-- Donation Records -->
+    <h3 class="section-title"> Donation Records (Past Donations)</h3>
+
+    <table class="custom-table mb-5">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Donor</th>
+                <th>Blood Group</th>
+                <th>Type</th>
+                <th>Units</th>
+                <th>Location</th>
+                <th>Donation Date</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            {% for dr in donation_records %}
+            <tr>
+                <td>{{ forloop.counter }}</td>
+                <td>{{ dr.donor.user.username }}</td>
+                <td>{{ dr.donor.blood_group }}</td>
+                <td>{{ dr.donation_type }}</td>
+                <td>{{ dr.units }}</td>
+                <td>{{ dr.location }}</td>
+                <td>{{ dr.donation_date|date:"Y-m-d" }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7">No donation history found</td></tr>
             {% endfor %}
         </tbody>
     </table>

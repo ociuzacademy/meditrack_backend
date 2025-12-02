@@ -126,10 +126,10 @@
         </p>
 
         <div class="details-box">
-          <p>📅 <strong>Date:</strong> {{ appointment.date }}</p>
-          <p>🎫 <strong>Token Number:</strong> <span class="token">{{ token_number }}</span></p>
-          <p>⏰ <strong>Expected Time:</strong> {{ expected_time }}</p>
-          <p>🏥 <strong>Department:</strong> {{ doctor.specialization.department|default:"General" }}</p>
+          <p><strong>Date:</strong> {{ appointment.date }}</p>
+          <p><strong>Token Number:</strong> <span class="token">{{ token_number }}</span></p>
+          <p><strong>Expected Time:</strong> {{ expected_time }}</p>
+          <p><strong>Department:</strong> {{ doctor.specialization.department|default:"General" }}</p>
         </div>
 
         <p>Please arrive at the hospital on time. We look forward to providing you with the best care possible.</p>

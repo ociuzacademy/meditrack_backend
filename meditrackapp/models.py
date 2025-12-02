@@ -1,4 +1,7 @@
 from django.db import models
+from userapp.models import *
+from userapp.models import User,BloodDonor
+
 
 
 # Create your models here.
@@ -101,3 +104,48 @@ class RescheduleRequest(models.Model):
 
     def __str__(self):
         return f"Reschedule Request #{self.id} (Doctor: {self.doctor.name})"
+
+
+class Notification(models.Model):
+    NOTIFICATION_TYPES = [
+        ('blood', 'Blood Donation'),
+        ('reschedule', 'Reschedule Request'),
+    ]
+    user = models.ForeignKey(User, on_delete=models.CASCADE)  # or your User model
+    title = models.CharField(max_length=255)
+    message = models.TextField()
+    type = models.CharField(max_length=20, choices=NOTIFICATION_TYPES, default='blood')
+    # is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Notification to {self.user.username} - {self.title}"
+    
+
+
+class BloodRequest(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ]
+    
+    DONATION_TYPES = [
+        ('Whole Blood', 'Whole Blood'),
+        ('Red Cells', 'Red Cells'),
+        ('Plasma', 'Plasma'),
+        ('Platelets', 'Platelets'),
+    ]
+
+    doctor = models.ForeignKey(Doctor, on_delete=models.CASCADE)
+    blood_group = models.CharField(max_length=3, choices=BloodDonor.BLOOD_GROUP_CHOICES)
+    units_required = models.IntegerField()
+    donation_date = models.DateField(null=True, blank=True)
+    reason = models.TextField()
+    donation_type = models.CharField(max_length=20, choices=DONATION_TYPES, default='Whole Blood')
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
+    location = models.CharField(max_length=100)  # hospital location
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Request {self.id} - {self.blood_group}"
