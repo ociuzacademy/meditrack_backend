@@ -142,3 +142,21 @@ class DonorAcceptance(models.Model):
 
     def __str__(self):
         return f"{self.donor.user.username} → {self.request.id} ({self.status})"
+    
+    
+class Complaint(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    category = models.CharField(max_length=50)
+    description = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    def __str__(self):
+        return f"Complaint #{self.id}"
+
+
+class ComplaintImage(models.Model):
+    complaint = models.ForeignKey(Complaint,related_name="images",on_delete=models.CASCADE)
+    image = models.ImageField(upload_to="complaints/", null=True, blank=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Image for Complaint #{self.complaint.id}"

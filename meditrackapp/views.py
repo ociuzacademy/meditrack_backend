@@ -270,20 +270,26 @@ def doctor_appointment_history(request, doctor_id):
         "appointments": appointments,
     })
 
+from datetime import date
+from django.db.models import Q
+from django.shortcuts import render, get_object_or_404
+
 def upcoming_appointments(request, doctor_id):
     doctor = get_object_or_404(Doctor, id=doctor_id)
 
-    # Get filters
     search = request.GET.get("search", "").strip()
-    date = request.GET.get("date", "").strip()
+    selected_date = request.GET.get("date", "").strip()
 
-    # Base Query: Only upcoming appointments
+    # Today's date
+    today = date.today()
+
+    # Only future appointments (exclude today & past)
     appointments = Appointment.objects.filter(
         doctor=doctor,
+        date__gt=today,  
         status="upcoming"
     ).select_related("user")
 
-    # Search filter (patient name, email, phone)
     if search:
         appointments = appointments.filter(
             Q(user__username__icontains=search) |
@@ -291,17 +297,16 @@ def upcoming_appointments(request, doctor_id):
             Q(user__phone__icontains=search)
         )
 
-    # Date filter
-    if date:
-        appointments = appointments.filter(date=date)
+    if selected_date:
+        appointments = appointments.filter(date=selected_date)
 
-    # Order by date and token_number
     appointments = appointments.order_by("date", "token_number")
 
     return render(request, "doctor/doctor_upcoming_appointments.html", {
         "doctor": doctor,
         "appointments": appointments,
     })
+
 
 def start_op(request, doctor_id):
     doctor = get_object_or_404(Doctor, id=doctor_id)
@@ -1102,3 +1107,13 @@ def admin_complete_donation(request, accept_id):
 
     messages.success(request, "Donation marked as completed.")
     return redirect("admin_blood_requests")
+
+def admin_complaints_view(request):
+    complaints = Complaint.objects.select_related("user").prefetch_related("images")
+
+    total_complaints = complaints.count()
+
+    return render(request, "admin/admin_complaints.html", {
+        "complaints": complaints.order_by("-created_at"),
+        "total_complaints": total_complaints,
+    })

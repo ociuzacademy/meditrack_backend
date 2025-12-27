@@ -69,4 +69,6 @@ urlpatterns = [
     path("donor_history/", DonorDonationHistoryView.as_view(), name="donor_donation_history"),
     path("token_status/", DoctorCurrentTokenView.as_view(), name="doctor_token_status"),
     path("appointment_prescription/", AppointmentPrescriptionStatusView.as_view()),
+    path("submit_complaints/", SubmitComplaintAPIView.as_view(), name="submit-complaint"),
+    path("next-donation-date/", NextDonationDateAPIView.as_view()),
 ]

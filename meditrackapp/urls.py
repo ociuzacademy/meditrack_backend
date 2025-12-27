@@ -36,5 +36,7 @@ urlpatterns = [
     path('admin/blood-request/<int:req_id>/accepted/', views.admin_view_accepted_donors,name='admin_view_accepted_donors'),
     path('admin/donation-complete/<int:accept_id>/',views.admin_complete_donation,name='admin_complete_donation'),
     path("doctor/<int:doctor_id>/appointment-history/", views.doctor_appointment_history, name="doctor_appointment_history"),
-    path("doctor/<int:doctor_id>/upcoming/",views.upcoming_appointments,name="upcoming_appointments")
+    path("doctor/<int:doctor_id>/upcoming/",views.upcoming_appointments,name="upcoming_appointments"),
+    path("admin/complaints/", views.admin_complaints_view, name="admin_complaints")
+
 ]

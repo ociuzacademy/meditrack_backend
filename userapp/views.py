@@ -70,6 +70,47 @@ class UserRegistrationView(viewsets.ModelViewSet):
         }, status=status.HTTP_400_BAD_REQUEST)
 
 
+# class LoginView(APIView):
+#     def post(self, request, *args, **kwargs):
+#         serializer = UserLoginSerializer(data=request.data)
+        
+#         if serializer.is_valid():
+#             email = request.data.get("email")
+#             password = request.data.get("password")
+            
+#             try:
+#                 user = User.objects.get(email=email)
+#                 if password == user.password:
+#                     response_data = {
+#                         "status": "success",
+#                         "message": "User logged in successfully",
+#                         "user_id": str(user.id),
+#                         "data": request.data
+#                     }
+#                     request.session['id'] = user.id
+#                     return Response(response_data, status=status.HTTP_200_OK)
+#                 else:
+#                     return Response({
+#                         "status": "failed",
+#                         "message": "Invalid credentials",
+#                         "data": request.data
+#                     }, status=status.HTTP_400_BAD_REQUEST)
+
+#             except User.DoesNotExist:
+#                 return Response({
+#                     "status": "failed",
+#                     "message": "User not found",
+#                     "data": request.data
+#                 }, status=status.HTTP_400_BAD_REQUEST)
+                
+#         return Response({
+#             "status": "failed",
+#             "message": "Invalid input",
+#             "errors": serializer.errors,
+#             "data": request.data
+#         }, status=status.HTTP_400_BAD_REQUEST)
+
+
 class LoginView(APIView):
     def post(self, request, *args, **kwargs):
         serializer = UserLoginSerializer(data=request.data)
@@ -80,15 +121,24 @@ class LoginView(APIView):
             
             try:
                 user = User.objects.get(email=email)
+
                 if password == user.password:
+
+                    # Check if donor record exists
+                    donor = BloodDonor.objects.filter(user_id=user.id).first()
+                    donor_id = donor.id if donor else None
+
                     response_data = {
                         "status": "success",
                         "message": "User logged in successfully",
                         "user_id": str(user.id),
+                        "donor_id": donor_id,     # Added here
                         "data": request.data
                     }
+
                     request.session['id'] = user.id
                     return Response(response_data, status=status.HTTP_200_OK)
+
                 else:
                     return Response({
                         "status": "failed",
@@ -109,6 +159,7 @@ class LoginView(APIView):
             "errors": serializer.errors,
             "data": request.data
         }, status=status.HTTP_400_BAD_REQUEST)
+
 
 
 class UserProfileView(viewsets.ReadOnlyModelViewSet):
@@ -481,7 +532,7 @@ class UpcomingAppointmentsView(APIView):
             date__gte=today
         ).order_by("date", "token_number")
 
-        serializer = AppointmentSerializer(appointments, many=True)
+        serializer = AppointmentListSerializer(appointments, many=True)
 
         return Response({
             "success": True,
@@ -808,16 +859,8 @@ class FeedbackListView(APIView):
         
         
 class FeedbackDetailView(APIView):
-    """
-    GET - Retrieve detailed information about a specific feedback entry.
-    Params:
-        feedback_id (required)
-    Response:
-        Appointment details + feedback details
-    """
 
     def get(self, request):
-        # ✅ Get feedback_id from query params
         feedback_id = request.query_params.get('feedback_id')
 
         if not feedback_id:
@@ -826,13 +869,16 @@ class FeedbackDetailView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # ✅ Fetch feedback object
         feedback = get_object_or_404(Feedback, id=feedback_id)
         appointment = feedback.appointment
         doctor = appointment.doctor
         user = appointment.user
 
-        # ✅ Build structured response
+        # Doctor image path (media/...)
+        doctor_image_path = ""
+        if doctor.image:
+            doctor_image_path = f"media/{doctor.image.name}"
+
         data = {
             "feedback_id": feedback.id,
             "appointment": {
@@ -844,7 +890,8 @@ class FeedbackDetailView(APIView):
                     "id": doctor.id,
                     "name": doctor.name,
                     "specialization": doctor.specialization.department if doctor.specialization else "General",
-                    "email": doctor.email
+                    "email": doctor.email,
+                    "image": doctor_image_path,   # ✅ Updated: media/...
                 },
                 "patient": {
                     "id": user.id,
@@ -1020,12 +1067,44 @@ class RejectRescheduleAPIView(APIView):
         )
 
 
+# class BloodDonorRegisterView(APIView):
+
+#     def post(self, request, *args, **kwargs):
+#         serializer = BloodDonorSerializer(data=request.data)
+        
+#         if serializer.is_valid():
+#             donor = serializer.save()
+#             return Response({
+#                 "success": True,
+#                 "message": "Blood donor registered successfully.",
+#                 "data": BloodDonorSerializer(donor).data
+#             }, status=status.HTTP_201_CREATED)
+
+#         return Response({
+#             "success": False,
+#             "errors": serializer.errors
+#         }, status=status.HTTP_400_BAD_REQUEST)
+
+
 class BloodDonorRegisterView(APIView):
 
     def post(self, request, *args, **kwargs):
         serializer = BloodDonorSerializer(data=request.data)
-        
+
         if serializer.is_valid():
+
+            user_id = serializer.validated_data.get("user_id")
+
+            # Check if donor already registered
+            existing_donor = BloodDonor.objects.filter(user_id=user_id).first()
+            if existing_donor:
+                return Response({
+                    "success": False,
+                    "message": "This user is already registered as a blood donor.",
+                    "donor_id": existing_donor.id,
+                    "data": BloodDonorSerializer(existing_donor).data
+                }, status=status.HTTP_400_BAD_REQUEST)
+
             donor = serializer.save()
             return Response({
                 "success": True,
@@ -1037,6 +1116,7 @@ class BloodDonorRegisterView(APIView):
             "success": False,
             "errors": serializer.errors
         }, status=status.HTTP_400_BAD_REQUEST)
+
 
 
 
@@ -1244,6 +1324,49 @@ class AddDonationRecordView(APIView):
         )
         
         
+# class BloodRequestsForDonorView(APIView):
+
+#     def get(self, request, *args, **kwargs):
+#         donor_id = request.query_params.get("donor_id")
+
+#         # ---------- Validate donor ----------
+#         try:
+#             donor = BloodDonor.objects.get(id=donor_id)
+#         except BloodDonor.DoesNotExist:
+#             return Response(
+#                 {"error": "Invalid donor_id"},
+#                 status=status.HTTP_404_NOT_FOUND
+#             )
+
+#         today = timezone.now().date()
+
+#         # ---------- Filter blood requests ----------
+#         requests = BloodRequest.objects.filter(
+#             blood_group=donor.blood_group,
+#             status="approved"  # only approved ones are meaningful for donor
+#         ).filter(
+#             # Do not show past donation dates
+#             Q(donation_date__gte=today) | Q(donation_date__isnull=True)
+#         ).order_by("-created_at")
+
+#         # ---------- Format response ----------
+#         data = [
+#             {
+#                 "id": req.id,
+#                 "doctor": req.doctor.name,
+#                 "blood_group": req.blood_group,
+#                 "units_required": req.units_required,
+#                 "donation_type": req.donation_type,
+#                 "donation_date": req.donation_date,
+#                 "location": req.location,
+#                 "reason": req.reason,
+#                 "created_at": req.created_at,
+#             }
+#             for req in requests
+#         ]
+
+#         return Response(data, status=200)
+
 class BloodRequestsForDonorView(APIView):
 
     def get(self, request, *args, **kwargs):
@@ -1260,14 +1383,23 @@ class BloodRequestsForDonorView(APIView):
 
         today = timezone.now().date()
 
+        # ---------- Find requests already accepted by this donor ----------
+        accepted_request_ids = DonorAcceptance.objects.filter(
+            donor_id=donor_id
+        ).values_list("request_id", flat=True)
+
         # ---------- Filter blood requests ----------
-        requests = BloodRequest.objects.filter(
-            blood_group=donor.blood_group,
-            status="approved"  # only approved ones are meaningful for donor
-        ).filter(
-            # Do not show past donation dates
-            Q(donation_date__gte=today) | Q(donation_date__isnull=True)
-        ).order_by("-created_at")
+        requests = (
+            BloodRequest.objects.filter(
+                blood_group=donor.blood_group,
+                status="approved"
+            )
+            .filter(
+                Q(donation_date__gte=today) | Q(donation_date__isnull=True)
+            )
+            .exclude(id__in=accepted_request_ids)   # hide already accepted
+            .order_by("-created_at")
+        )
 
         # ---------- Format response ----------
         data = [
@@ -1286,16 +1418,45 @@ class BloodRequestsForDonorView(APIView):
         ]
 
         return Response(data, status=200)
+
     
-    
+# class CommonBloodRequestListView(APIView):
+
+#     def get(self, request, *args, **kwargs):
+#         today = timezone.now().date()
+
+#         # Fetch all approved & non-expired blood requests
+#         requests = BloodRequest.objects.filter(
+#             status="approved"
+#         ).filter(
+#             Q(donation_date__gte=today) | Q(donation_date__isnull=True)
+#         ).order_by("-created_at")
+
+#         data = [
+#             {
+#                 "id": req.id,
+#                 "doctor": req.doctor.name,
+#                 "blood_group": req.blood_group,
+#                 "units_required": req.units_required,
+#                 "donation_type": req.donation_type,
+#                 "donation_date": req.donation_date,
+#                 "location": req.location,
+#                 "reason": req.reason,
+#                 "created_at": req.created_at,
+#             }
+#             for req in requests
+#         ]
+
+#         return Response(data, status=200)
+
 class CommonBloodRequestListView(APIView):
 
     def get(self, request, *args, **kwargs):
         today = timezone.now().date()
 
-        # Fetch all approved & non-expired blood requests
+        # Show only today's and future requests
         requests = BloodRequest.objects.filter(
-            status="approved"
+            status="approved",
         ).filter(
             Q(donation_date__gte=today) | Q(donation_date__isnull=True)
         ).order_by("-created_at")
@@ -1316,6 +1477,7 @@ class CommonBloodRequestListView(APIView):
         ]
 
         return Response(data, status=200)
+
     
     
 class DonorDonationHistoryView(APIView):
@@ -1486,4 +1648,121 @@ class AppointmentPrescriptionStatusView(APIView):
                 "created_at": prescription.created_at,
                 "medicines": med_list
             }
+        }, status=status.HTTP_200_OK)
+
+
+
+class SubmitComplaintAPIView(APIView):
+
+    def post(self, request):
+        user_id = request.data.get("user")
+        category = request.data.get("category")
+        description = request.data.get("description")
+
+        # images are OPTIONAL
+        images = request.FILES.getlist("images", [])
+
+        if not user_id or not category or not description:
+            return Response(
+                {"error": "user, category, and description are required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response(
+                {"error": "Invalid user"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        complaint = Complaint.objects.create(
+            user=user,
+            category=category,
+            description=description
+        )
+
+        # Save images only if provided
+        for img in images:
+            if img:
+                ComplaintImage.objects.create(
+                    complaint=complaint,
+                    image=img
+                )
+
+        serializer = ComplaintSerializer(complaint)
+        return Response(
+            {
+                "success": True,
+                "message": "Complaint submitted successfully",
+                "data": serializer.data
+            },
+            status=status.HTTP_201_CREATED
+        )
+
+
+class NextDonationDateAPIView(APIView):
+    """
+    GET - Get next eligible donation date for a donor
+    Params:
+        donor_id (required)
+    """
+
+    def get(self, request):
+        donor_id = request.query_params.get("donor_id")
+
+        if not donor_id:
+            return Response(
+                {"error": "donor_id is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        donor = get_object_or_404(BloodDonor, id=donor_id)
+
+        # Total donations count
+        total_donations = DonationRecord.objects.filter(donor=donor).count()
+
+        last_donation = (
+            DonationRecord.objects
+            .filter(donor=donor)
+            .order_by("-donation_date")
+            .first()
+        )
+
+        # No previous donations
+        if not last_donation:
+            return Response({
+                "donor": donor.user.username,
+                "blood_group": donor.blood_group,
+                "total_donations": total_donations,
+                "message": "No previous donation found. You are eligible to donate now.",
+                "eligible": True,
+                "next_donation_date": timezone.now().date()
+            }, status=status.HTTP_200_OK)
+
+        donation_type = last_donation.donation_type
+        last_date = last_donation.donation_date
+
+        # Donation intervals (days)
+        interval_map = {
+            "Whole Blood": 56,
+            "Red Cells": 112,
+            "Plasma": 28,
+            "Platelets": 7,
+        }
+
+        gap_days = interval_map.get(donation_type, 56)
+        next_donation_date = last_date + timedelta(days=gap_days)
+
+        today = timezone.now().date()
+        eligible = today >= next_donation_date
+
+        return Response({
+            "donor": donor.user.username,
+            "blood_group": donor.blood_group, 
+            "total_donations": total_donations,
+            "last_donation_date": last_date,
+            "last_donation_type": donation_type,
+            "next_donation_date": next_donation_date,
+            "eligible": eligible
         }, status=status.HTTP_200_OK)

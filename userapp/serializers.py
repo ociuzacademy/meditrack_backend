@@ -111,15 +111,26 @@ class MedicineSerializer(serializers.ModelSerializer):
 
 class PrescriptionSerializer(serializers.ModelSerializer):
     doctor_name = serializers.CharField(source='appointment.doctor.name', read_only=True)
+    department = serializers.CharField(source='appointment.doctor.specialization.department', read_only=True)
     appointment_date = serializers.DateField(source='appointment.date', read_only=True)
+    token_number = serializers.IntegerField(source='appointment.token_number', read_only=True)
+
     medicines = MedicineSerializer(many=True, read_only=True)
 
     class Meta:
         model = Prescription
         fields = [
-            "id", "doctor_name", "appointment_date",
-            "symptoms", "notes", "created_at", "medicines"
+            "id",
+            "doctor_name",
+            "department",
+            "appointment_date",
+            "token_number",
+            "symptoms",
+            "notes",
+            "created_at",
+            "medicines",
         ]
+
         
         
 class BloodDonorSerializer(serializers.ModelSerializer):
@@ -208,3 +219,27 @@ class BloodRequestSerializer(serializers.ModelSerializer):
             'status',
             'created_at'
         ]
+
+
+from rest_framework import serializers
+
+class ComplaintImageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ComplaintImage
+        fields = ["id", "image"]
+
+
+class ComplaintSerializer(serializers.ModelSerializer):
+    images = ComplaintImageSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Complaint
+        fields = [
+            "id",
+            "user",
+            "category",
+            "description",
+            "created_at",
+            "images"
+        ]
+        read_only_fields = ["user", "created_at"]
